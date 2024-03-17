@@ -8,6 +8,7 @@
 #include <random>
 #include <chrono>
 #include <array>
+#include <algorithm>
 
 struct Point
 {

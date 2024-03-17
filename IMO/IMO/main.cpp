@@ -69,7 +69,7 @@ int getNearestIndex(int index, const DistanceMatrix& M)
 int getLenDiff(int placementIndex, int pointIndex, const std::vector<int>& path, const DistanceMatrix& M)
 {
     int l = path[placementIndex];
-    int r = placementIndex == path.size() - 1 ? 0 : path[placementIndex + 1];
+    int r = placementIndex == path.size() - 1 ? path[0] : path[placementIndex + 1];
     return M[l][pointIndex] + M[pointIndex][r] - M[l][r];
 }
 
@@ -225,6 +225,8 @@ public:
         {
             score += euclideanDistance(path1[i], path1[i + 1]);
         }
+        score += euclideanDistance(path1[path1.size() - 1], path1[0]);
+        score += euclideanDistance(path2[path2.size() - 1], path2[0]);
 
         return score;
     }

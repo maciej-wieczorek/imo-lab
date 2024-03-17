@@ -21,7 +21,7 @@ with open(workDir / "kroA100.tsp.txt", "r") as file:
 # Read output route
 route1 = []
 route2 = []
-with open(workDir / "kroA100.tsp-GreedyCycle-solution.txt", "r") as file:
+with open(workDir / "kroA100.tsp-GreedyRegret-solution.txt", "r") as file:
     r1=True
     for line in file:
         if line =="\n":

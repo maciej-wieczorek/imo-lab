@@ -76,7 +76,7 @@ int getLenDiff(int placementIndex, int pointIndex, const std::vector<int>& path,
 
 int getSecondMin(const std::vector<int>& vec) {
     if (vec.size() < 2)
-        throw std::invalid_argument("Vector size is less than 2");
+        return vec[0];
 
     int min1 = std::numeric_limits<int>::max();
     int min2 = std::numeric_limits<int>::max();
@@ -117,8 +117,9 @@ std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const
     }
 
     int secondBestLenDiff = getSecondMin(lenDiffs);
+    int regretVal = secondBestLenDiff - bestLenDiff;
 
-    return std::make_pair(bestPlacement, secondBestLenDiff - bestLenDiff);
+    return std::make_pair(bestPlacement, regretVal);
 }
 
 double calculateMean(const std::vector<int>& vec)
@@ -397,18 +398,11 @@ public:
         int start1Index = instance.startIndex;
         int start2Index = getFurthestindex(start1Index, M);
 
-        int second1Index = getNearestIndex(start1Index, M);
-        int second2Index = getNearestIndex(start2Index, M);
-
         std::array<std::vector<int>, 2> paths;
         paths[0].push_back(start1Index);
-        paths[0].push_back(second1Index);
         paths[1].push_back(start2Index);
-        paths[1].push_back(second2Index);
         unVisited.erase(start1Index);
         unVisited.erase(start2Index);
-        unVisited.erase(second1Index);
-        unVisited.erase(second2Index);
 
         while (!unVisited.empty())
         {
@@ -479,7 +473,7 @@ int main(int argc, char* argv[])
                 Solution solution = solver->run(instance);
                 int score = solution.getScore();
                 scores.push_back(score);
-                if (score < bestScore);
+                if (score < bestScore)
                 {
                     bestScore = score;
                     bestSolution = solution;

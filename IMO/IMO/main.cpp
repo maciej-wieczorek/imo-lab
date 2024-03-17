@@ -46,6 +46,26 @@ int getFurthestindex(int index, const DistanceMatrix& M)
 	return maxindex;
 }
 
+int getNearestIndex(int index, const DistanceMatrix& M)
+{
+    int minDinstance = std::numeric_limits<int>::max();
+	int minIndex = -1;
+	int dim = M[index].size();
+
+	for (int i = 0; i < dim; ++i)
+	{
+        if (i != index)
+        {
+            if (M[index][i] < minDinstance)
+            {
+                minDinstance = M[index][i];
+                minIndex = i;
+            }
+        }
+	}
+	return minIndex;
+}
+
 int getLenDiff(int placementIndex, int pointIndex, const std::vector<int>& path, const DistanceMatrix& M)
 {
     int l = path[placementIndex];
@@ -53,36 +73,41 @@ int getLenDiff(int placementIndex, int pointIndex, const std::vector<int>& path,
     return M[l][pointIndex] + M[pointIndex][r] - M[l][r];
 }
 
-int getSecondMax(const std::vector<int>& values)
-{
-    int max_value = std::numeric_limits<int>::min();
-    int second_max_value = std::numeric_limits<int>::min();
+int getSecondMin(const std::vector<int>& vec) {
+    if (vec.size() < 2)
+        throw std::invalid_argument("Vector size is less than 2");
 
-    for (int num : values)
-    {
-        if (num > max_value)
-        {
-            second_max_value = max_value;
-            max_value = num;
+    int min1 = std::numeric_limits<int>::max();
+    int min2 = std::numeric_limits<int>::max();
+
+    for (int num : vec) {
+        if (num < min1) {
+            min2 = min1;
+            min1 = num;
         }
-        else if (num > second_max_value && num != max_value)
-        {
-            second_max_value = num;
+        else if (num < min2 && num != min1) {
+            min2 = num;
         }
     }
 
-    return second_max_value;
+    if (min2 == std::numeric_limits<int>::max())
+    {
+        return min1;
+    }
+
+    return min2;
 }
 
 std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const DistanceMatrix& M)
 {
+
     std::vector<int> lenDiffs;
     int bestPlacement = -1;
     int bestLenDiff = std::numeric_limits<int>::max();
     for (int i = 0; i < path.size(); ++i)
     {
         int lenDiff = getLenDiff(i, pointIndex, path, M);
-        if (lenDiff > bestLenDiff)
+        if (lenDiff < bestLenDiff)
         {
             bestLenDiff = lenDiff;
             bestPlacement = i;
@@ -90,9 +115,9 @@ std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const
         lenDiffs.push_back(lenDiff);
     }
 
-    int secondBestLenDiff = getSecondMax(lenDiffs);
+    int secondBestLenDiff = getSecondMin(lenDiffs);
 
-    return std::make_pair(bestPlacement, bestLenDiff - secondBestLenDiff);
+    return std::make_pair(bestPlacement, secondBestLenDiff - bestLenDiff);
 }
 
 class Instance
@@ -354,11 +379,18 @@ public:
         int start1Index = instance.startIndex;
         int start2Index = getFurthestindex(start1Index, M);
 
+        int second1Index = getNearestIndex(start1Index, M);
+        int second2Index = getNearestIndex(start2Index, M);
+
         std::array<std::vector<int>, 2> paths;
         paths[0].push_back(start1Index);
+        paths[0].push_back(second1Index);
         paths[1].push_back(start2Index);
+        paths[1].push_back(second2Index);
         unVisited.erase(start1Index);
         unVisited.erase(start2Index);
+        unVisited.erase(second1Index);
+        unVisited.erase(second2Index);
 
         while (!unVisited.empty())
         {
@@ -377,6 +409,7 @@ public:
 					{
                         maxRegret = regretValue;
                         bestPlacement = placement;
+                        bestPoint = pointIndex;
 					}
 				}
 
@@ -413,7 +446,7 @@ int main(int argc, char* argv[])
 
     std::cout << "solver, instance, score\n";
 
-    TSPSolver* solvers[] = { new GreedyNN, new GreedyCycle };
+    TSPSolver* solvers[] = { new GreedyNN, new GreedyCycle, new GreedyRegret };
     for (TSPSolver* solver : solvers)
     {
         for (auto& instance : instances)

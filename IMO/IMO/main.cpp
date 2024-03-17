@@ -281,14 +281,28 @@ public:
                 for (int i = 0; i < path.size(); ++i)
                 {
 					for (int pointIndex : unVisited)
-					{
-						int distance = M[path[i]][pointIndex];
-						if (distance < minDistance)
-						{
-							minDistance = distance;
-							bestPoint = pointIndex;
-                            bestPlacement = i;
-						}
+					{   
+                        if (i==0 || i == path.size()-1)
+                        {
+                            int distance = M[path[i]][pointIndex];
+                            if (distance < minDistance)
+                            {
+                                minDistance = distance;
+                                bestPoint = pointIndex;
+                                bestPlacement = i;
+                            }
+                        }
+                        else
+                        {
+                            int distance = M[path[i]][pointIndex] + M[path[i+1]][pointIndex] - M[path[i]][path[i+1]];
+                            if (distance < minDistance)
+                            {
+                                minDistance = distance;
+                                bestPoint = pointIndex;
+                                bestPlacement = i;
+                            }
+                        }
+
 					}
                 }
 
@@ -475,11 +489,13 @@ int main(int argc, char* argv[])
                 scores.push_back(score);
                 if (score < bestScore)
                 {
+                    
                     bestScore = score;
                     bestSolution = solution;
                 }
+                 
             }
-
+            
             int worstScore = *std::max_element(scores.begin(), scores.end());
             int avgScore = calculateMean(scores);
 

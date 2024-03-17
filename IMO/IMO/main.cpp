@@ -120,6 +120,21 @@ std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const
     return std::make_pair(bestPlacement, secondBestLenDiff - bestLenDiff);
 }
 
+double calculateMean(const std::vector<int>& vec)
+{
+    if (vec.empty())
+    {
+        return 0.0;
+    }
+
+    double sum = 0.0;
+    for (const auto& element : vec) {
+        sum += element;
+    }
+
+    return sum / vec.size();
+}
+
 class Instance
 {
 public:
@@ -451,6 +466,7 @@ int main(int argc, char* argv[])
     {
         for (auto& instance : instances)
         {
+            std::vector<int> scores;
 			int bestScore = std::numeric_limits<int>::max();
 			Solution bestSolution;
 
@@ -459,6 +475,7 @@ int main(int argc, char* argv[])
                 instance.startIndex = i;
                 Solution solution = solver->run(instance);
                 int score = solution.getScore();
+                scores.push_back(score);
                 if (score < bestScore);
                 {
                     bestScore = score;
@@ -466,11 +483,14 @@ int main(int argc, char* argv[])
                 }
             }
 
+            int worstScore = *std::max_element(scores.begin(), scores.end());
+            int avgScore = calculateMean(scores);
+
 			std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
 
 			bestSolution.dump(workDir / solFileName);
 
-            std::cout << solver->getName() << ", " << instance.name << ", " << bestScore << '\n';
+            std::cout << solver->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
         }
     }
 

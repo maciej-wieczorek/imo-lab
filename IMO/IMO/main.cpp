@@ -5,6 +5,9 @@
 #include <vector>
 #include <math.h>
 #include <filesystem>
+#include <random>
+#include <chrono>
+#include <array>
 
 struct Point
 {
@@ -19,6 +22,79 @@ int euclideanDistance(const Point& p1, const Point& p2)
     return std::round(std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2)));
 }
 
+int getRandomNumber(int min, int max) {
+    static unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    static std::mt19937 generator(seed);
+    std::uniform_int_distribution<int> distribution(min, max);
+    return distribution(generator);
+}
+
+int getFurthestindex(int index, const DistanceMatrix& M)
+{
+	int maxdistance = 0;
+	int maxindex = -1;
+	int dim = M[index].size();
+
+	for (int i = 0; i < dim; ++i)
+	{
+		if (M[index][i] > maxdistance)
+		{
+			maxdistance = M[index][i];
+			maxindex = i;
+		}
+	}
+	return maxindex;
+}
+
+int getLenDiff(int placementIndex, int pointIndex, const std::vector<int>& path, const DistanceMatrix& M)
+{
+    int l = path[placementIndex];
+    int r = placementIndex == path.size() - 1 ? 0 : path[placementIndex + 1];
+    return M[l][pointIndex] + M[pointIndex][r] - M[l][r];
+}
+
+int getSecondMax(const std::vector<int>& values)
+{
+    int max_value = std::numeric_limits<int>::min();
+    int second_max_value = std::numeric_limits<int>::min();
+
+    for (int num : values)
+    {
+        if (num > max_value)
+        {
+            second_max_value = max_value;
+            max_value = num;
+        }
+        else if (num > second_max_value && num != max_value)
+        {
+            second_max_value = num;
+        }
+    }
+
+    return second_max_value;
+}
+
+std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const DistanceMatrix& M)
+{
+    std::vector<int> lenDiffs;
+    int bestPlacement = -1;
+    int bestLenDiff = std::numeric_limits<int>::max();
+    for (int i = 0; i < path.size(); ++i)
+    {
+        int lenDiff = getLenDiff(i, pointIndex, path, M);
+        if (lenDiff > bestLenDiff)
+        {
+            bestLenDiff = lenDiff;
+            bestPlacement = i;
+        }
+        lenDiffs.push_back(lenDiff);
+    }
+
+    int secondBestLenDiff = getSecondMax(lenDiffs);
+
+    return std::make_pair(bestPlacement, bestLenDiff - secondBestLenDiff);
+}
+
 class Instance
 {
 public:
@@ -30,6 +106,8 @@ public:
         {
             std::cerr << "Error opening file: " << path << "\n";
         }
+
+        name = path.stem().string();
 
         std::string line;
 
@@ -70,6 +148,8 @@ public:
 
     std::vector<Point> points;
     DistanceMatrix M;
+    std::string name;
+    int startIndex;
 };
 
 class Solution
@@ -94,6 +174,21 @@ public:
         }
     }
 
+    int getScore()
+    {
+        int score = 0;
+        for (int i = 0; i < path1.size() - 1; ++i)
+        {
+            score += euclideanDistance(path1[i], path1[i + 1]);
+        }
+        for (int i = 0; i < path2.size() - 1; ++i)
+        {
+            score += euclideanDistance(path1[i], path1[i + 1]);
+        }
+
+        return score;
+    }
+
     std::vector<Point> path1;
     std::vector<Point> path2;
 };
@@ -101,12 +196,14 @@ public:
 class TSPSolver
 {
 public:
+    virtual const char* getName() = 0;
     virtual Solution run(const Instance& instance) = 0;
 };
 
 class GreedyNN : public TSPSolver
 {
 public:
+    const char* getName() { return "GreedyNN"; }
     Solution run(const Instance& instance)
     {
         Solution sol;
@@ -120,289 +217,229 @@ public:
             unVisited.insert(i);
         }
 
-        std::vector<int> path1;
-        std::vector<int> path2;
+        int start1Index = instance.startIndex;
+        int start2Index = getFurthestindex(start1Index, M);
 
-        int start1Index = 0;
-        int start2Index = getFurthestindex(start1Index, M, dim);
-        path1.push_back(start1Index);
-        path2.push_back(start2Index);
+        std::array<std::vector<int>, 2> paths;
+        paths[0].push_back(start1Index);
+        paths[1].push_back(start2Index);
         unVisited.erase(start1Index);
         unVisited.erase(start2Index);
 
         while (!unVisited.empty())
         {
-            int minDistance = std::numeric_limits<int>::max();
-            int bestPoint = -1;
-            for (int pointIndex : unVisited)
+            for (auto& path : paths)
             {
-                int distance = M[path1[path1.size() - 1]][pointIndex];
-                if (distance < minDistance)
-                {
-                    minDistance = distance;
-                    bestPoint = pointIndex;
-                }
-            }
-            unVisited.erase(bestPoint);
-            path1.push_back(bestPoint);
+				int minDistance = std::numeric_limits<int>::max();
+				int bestPlacement = -1;
+				int bestPoint = -1;
 
-            minDistance = std::numeric_limits<int>::max();
-            bestPoint = -1;
-            for (int pointIndex : unVisited)
-            {
-                int distance = M[path2[path2.size() - 1]][pointIndex];
-                if (distance < minDistance)
+                for (int i = 0; i < path.size(); ++i)
                 {
-                    minDistance = distance;
-                    bestPoint = pointIndex;
+					for (int pointIndex : unVisited)
+					{
+						int distance = M[path[i]][pointIndex];
+						if (distance < minDistance)
+						{
+							minDistance = distance;
+							bestPoint = pointIndex;
+                            bestPlacement = i;
+						}
+					}
                 }
+
+				unVisited.erase(bestPoint);
+                path.insert(path.begin() + bestPlacement + 1, bestPoint);
             }
-            unVisited.erase(bestPoint);
-            path2.push_back(bestPoint);
         }
 
-        for (int pointIndex : path1)
+        for (int pointIndex : paths[0])
         {
             sol.path1.push_back(points[pointIndex]);
         }
-        for (int pointIndex : path2)
+        for (int pointIndex : paths[1])
         {
             sol.path2.push_back(points[pointIndex]);
         }
 
         return sol;
     }
-
-private:
-    Point getNearest(const Point& point, const DistanceMatrix& M)
-    {
-
-    }
-
-    int getFurthestindex(int index, const DistanceMatrix& M, int dim)
-    {
-        int maxdistance = 0;
-        int maxindex = -1;
-
-        for (int i =0; i < dim; i++)
-        {
-            if (M[index][i] > maxdistance)
-            {
-                maxdistance = M[index][i];
-                maxindex = i;
-            }
-        }
-        return maxindex;
-    }
-};
-
-
-class  Edge
-{
-    int from;
-    int to;
-    int distance;
-    public:
-    Edge(int from, int to, int distance) : from(from), to(to), distance(distance) {}
-    getFrom() {return from;}
-    getTo() {return to;}
-    getDistance() {return distance;}
 };
 
 class GreedyCycle : public TSPSolver
 {
 public:
+    const char* getName() { return "GreedyCycle"; }
+
     Solution run(const Instance& instance)
     {
         Solution sol;
         const auto& M = instance.M;
         const auto& points = instance.points;
         unsigned int dim = points.size();
-        int sumdistance1=0;
-        int sumdistance2=0;
-        std::vector<Edge> path1;
-        std::vector<Edge> path2;
 
         std::set<int> unVisited;
-
-         for (int i = 0; i < dim; ++i)
+        for (int i = 0; i < dim; ++i)
         {
             unVisited.insert(i);
         }
 
-        int start1Index = 0;
-        int start2Index = getFurthestindex(start1Index, M, dim);
+        int start1Index = instance.startIndex % points.size();
+        int start2Index = getFurthestindex(start1Index, M);
+
+        std::array<std::vector<int>, 2> paths;
+        paths[0].push_back(start1Index);
+        paths[1].push_back(start2Index);
         unVisited.erase(start1Index);
         unVisited.erase(start2Index);
 
-        int bestPoint=getNearestindex(start1Index, M, unVisited);
-        int minDistance = M[start1Index][bestPoint];
-
-        Edge e1(start1Index, bestPoint, minDistance);
-        path1.push_back(e1);
-        sumdistance1+=minDistance;
-        unVisited.erase(bestPoint);
-
-        bestPoint=getNearestindex(start2Index, M, unVisited);
-        minDistance = M[start2Index][bestPoint];
-
-        Edge e2(start2Index, bestPoint, minDistance);
-        path2.push_back(e2);
-        sumdistance2+=minDistance;
-        unVisited.erase(bestPoint);
-
-        bestPoint=getNearestindex2(path1[0].getFrom(),path1[0].getTo(), M, unVisited);
-        e1=Edge(path1[0].getTo(), bestPoint, M[path1[0].getTo()][bestPoint]);
-        path1.push_back(e1);
-        sumdistance1+=e1.getDistance();
-        unVisited.erase(bestPoint);
-        e1=Edge(bestPoint, path1[0].getFrom(), M[bestPoint][path1[0].getFrom()]);
-        path1.push_back(e1);
-        sumdistance1+=e1.getDistance();
-
-        bestPoint=getNearestindex2(path2[0].getFrom(),path2[0].getTo(), M, unVisited);
-        e2=Edge(path2[0].getTo(), bestPoint, M[path2[0].getTo()][bestPoint]);
-        path2.push_back(e2);
-        sumdistance2+=e2.getDistance();
-        unVisited.erase(bestPoint);
-        e2=Edge(bestPoint, path2[0].getFrom(), M[bestPoint][path2[0].getFrom()]);
-        path2.push_back(e2);
-        sumdistance2+=e2.getDistance();
-
-
-        while(!unVisited.empty())
+        while (!unVisited.empty())
         {
-            int bestgain1=std::numeric_limits<int>::max();
-            int bestgain2=std::numeric_limits<int>::max();
-            int pointtoadd1=-1;
-            int edgetoremoveindex1=-1;
-            int pointtoadd2=-1;
-            int edgetoremoveindex2=-1;
-
-
-            for(int j=0; j<path1.size(); j++)
+            for (auto& path : paths)
             {
-                for (int i: unVisited)
-                {
-                    int gain = M[path1[j].getFrom()][i]+M[path1[j].getTo()][i]-path1[j].getDistance();
-                    if (gain < bestgain1)
-                    {
-                        bestgain1=gain;
-                        pointtoadd1=i;
-                        edgetoremoveindex1=j;
-                    }
-                }
-            }
-            
-            path1.insert(path1.begin()+edgetoremoveindex1+1, Edge(path1[edgetoremoveindex1].getFrom(), pointtoadd1, M[path1[edgetoremoveindex1].getFrom()][pointtoadd1]));
-            path1.insert(path1.begin()+edgetoremoveindex1+2, Edge(pointtoadd1, path1[edgetoremoveindex1].getTo(), M[pointtoadd1][path1[edgetoremoveindex1].getTo()]));
-            path1.erase(path1.begin()+edgetoremoveindex1);
-            sumdistance1+=M[path1[edgetoremoveindex1].getFrom()][pointtoadd1]+M[pointtoadd1][path1[edgetoremoveindex1].getTo()];
-            unVisited.erase(pointtoadd1);
+				int minLenDiff = std::numeric_limits<int>::max();
+				int bestPlacement = -1;
+				int bestPoint = -1;
 
-            
-            for(int j=0; j<path2.size(); j++)
-            {
-                for (int i: unVisited)
+                for (int i = 0; i < path.size(); ++i)
                 {
-                    int gain = M[path2[j].getFrom()][i]+M[path2[j].getTo()][i]-path2[j].getDistance();
-                    if (gain < bestgain2)
-                    {
-                        bestgain2=gain;
-                        pointtoadd2=i;
-                        edgetoremoveindex2=j;
-                    }
+					for (int pointIndex : unVisited)
+					{
+                        int lenDiff = getLenDiff(i, pointIndex, path, M);
+						if (lenDiff < minLenDiff)
+						{
+							minLenDiff = lenDiff;
+							bestPoint = pointIndex;
+                            bestPlacement = i;
+						}
+					}
                 }
-            }
-            
-            path2.insert(path2.begin()+edgetoremoveindex2+1, Edge(path2[edgetoremoveindex2].getFrom(), pointtoadd2, M[path2[edgetoremoveindex2].getFrom()][pointtoadd2]));
-            path2.insert(path2.begin()+edgetoremoveindex2+2, Edge(pointtoadd2, path2[edgetoremoveindex2].getTo(), M[pointtoadd2][path2[edgetoremoveindex2].getTo()]));
-            path2.erase(path2.begin()+edgetoremoveindex2);
-            sumdistance2+=M[path2[edgetoremoveindex2].getFrom()][pointtoadd2]+M[pointtoadd2][path2[edgetoremoveindex2].getTo()];
-            unVisited.erase(pointtoadd2);
-            
-           
 
+				unVisited.erase(bestPoint);
+                path.insert(path.begin() + bestPlacement + 1, bestPoint);
+            }
         }
 
-        for (Edge e: path1)
+        for (int pointIndex : paths[0])
         {
-            sol.path1.push_back(points[e.getFrom()]);
+            sol.path1.push_back(points[pointIndex]);
         }
-        for (Edge e: path2)
+        for (int pointIndex : paths[1])
         {
-            sol.path2.push_back(points[e.getFrom()]);
+            sol.path2.push_back(points[pointIndex]);
         }
 
         return sol;
-
-      
     }
+};
 
-private:
-     int getFurthestindex(int index, const DistanceMatrix& M, int dim)
+class GreedyRegret : public TSPSolver
+{
+public:
+    const char* getName() { return "GreedyRegret"; }
+
+    Solution run(const Instance& instance)
     {
-        int maxdistance = 0;
-        int maxindex = -1;
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
 
-        for (int i =0; i < dim; i++)
+        std::set<int> unVisited;
+        for (int i = 0; i < dim; ++i)
         {
-            if (M[index][i] > maxdistance)
+            unVisited.insert(i);
+        }
+
+        int start1Index = instance.startIndex;
+        int start2Index = getFurthestindex(start1Index, M);
+
+        std::array<std::vector<int>, 2> paths;
+        paths[0].push_back(start1Index);
+        paths[1].push_back(start2Index);
+        unVisited.erase(start1Index);
+        unVisited.erase(start2Index);
+
+        while (!unVisited.empty())
+        {
+            for (auto& path : paths)
             {
-                maxdistance = M[index][i];
-                maxindex = i;
+                int maxRegret = -1;
+				int bestPlacement = -1;
+				int bestPoint = -1;
+
+				for (int pointIndex : unVisited)
+				{
+                    auto regret = getRegret(pointIndex, path, M);
+                    int placement = regret.first;
+                    int regretValue = regret.second;
+					if (regretValue > maxRegret)
+					{
+                        maxRegret = regretValue;
+                        bestPlacement = placement;
+					}
+				}
+
+				unVisited.erase(bestPoint);
+                path.insert(path.begin() + bestPlacement + 1, bestPoint);
             }
         }
-        return maxindex;
-    }
-    int getNearestindex(int index, const DistanceMatrix& M, std::set<int> unVisited)
-    {
-        int mindistance = std::numeric_limits<int>::max();
-        int minindex = -1;
 
-        for (int i: unVisited)
+        for (int pointIndex : paths[0])
         {
-            if (M[index][i] < mindistance)
-            {
-                mindistance = M[index][i];
-                minindex = i;
-            }
+            sol.path1.push_back(points[pointIndex]);
         }
-        return minindex;
-    }
-
-    int getNearestindex2(int index1, int index2, const DistanceMatrix& M, std::set<int> unVisited)
-    {
-        int minsum = std::numeric_limits<int>::max();
-        int minindex = -1;
-
-        for (int i : unVisited)
+        for (int pointIndex : paths[1])
         {
-            if (M[index1][i]+ M[index2][i] < minsum)
-            {
-                minsum = M[index1][i]+ M[index2][i];
-                minindex = i;
-            }
-
+            sol.path2.push_back(points[pointIndex]);
         }
-        return minindex;
+
+        return sol;
     }
 };
 
 int main(int argc, char* argv[])
 {
-    std::filesystem::path workDir = "workdir";
+    std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
 
-    Instance instance;
-    instance.load(workDir / "kroA100.tsp.txt");
 
-    auto greadyNNSolver = std::make_unique<GreedyNN>();
-    Solution solution = greadyNNSolver->run(instance);
-    solution.dump(workDir / "kroA100-greadyNN-solution.txt");
+    std::vector<Instance> instances;
+    std::string instanceNames[] = { "kroA100.tsp.txt", "kroB100.tsp.txt" };
+    for (const auto& instanceName : instanceNames)
+    {
+        instances.emplace_back();
+        instances[instances.size() - 1].load(workDir / instanceName);
+    }
 
-    auto greadyCycleSolver = std::make_unique<GreedyCycle>();
-    solution = greadyCycleSolver->run(instance);
-    solution.dump(workDir / "kroA100-greadyCycle-solution.txt");
+    std::cout << "solver, instance, score\n";
+
+    TSPSolver* solvers[] = { new GreedyNN, new GreedyCycle };
+    for (TSPSolver* solver : solvers)
+    {
+        for (auto& instance : instances)
+        {
+			int bestScore = std::numeric_limits<int>::max();
+			Solution bestSolution;
+
+            for (int i = 0; i < 100; ++i)
+            {
+                instance.startIndex = i;
+                Solution solution = solver->run(instance);
+                int score = solution.getScore();
+                if (score < bestScore);
+                {
+                    bestScore = score;
+                    bestSolution = solution;
+                }
+            }
+
+			std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
+
+			bestSolution.dump(workDir / solFileName);
+
+            std::cout << solver->getName() << ", " << instance.name << ", " << bestScore << '\n';
+        }
+    }
 
     return 0;
 }

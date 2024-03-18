@@ -119,7 +119,7 @@ std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const
     int secondBestLenDiff = getSecondMin(lenDiffs);
     int regretVal = secondBestLenDiff - bestLenDiff;
 
-    return std::make_pair(bestPlacement, regretVal);
+    return std::make_pair(bestPlacement, regretVal - 0.5 * bestLenDiff);
 }
 
 double calculateMean(const std::vector<int>& vec)
@@ -422,7 +422,7 @@ public:
         {
             for (auto& path : paths)
             {
-                int maxRegret = -1;
+                int maxRegret = std::numeric_limits<int>::min();
 				int bestPlacement = -1;
 				int bestPoint = -1;
 

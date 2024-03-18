@@ -10,7 +10,7 @@ else:
 
 # Read input coordinates
 coordinates = {}
-with open(workDir / "kroA100.tsp.txt", "r") as file:
+with open(workDir / "kroB100.tsp.txt", "r") as file:
     
     for line in file:
         if line.strip().split()[0].isdigit():
@@ -21,7 +21,7 @@ with open(workDir / "kroA100.tsp.txt", "r") as file:
 # Read output route
 route1 = []
 route2 = []
-with open(workDir / "kroA100.tsp-GreedyRegret-solution.txt", "r") as file:
+with open(workDir / "kroB100.tsp-GreedyRegret-solution.txt", "r") as file:
     r1=True
     for line in file:
         if line =="\n":

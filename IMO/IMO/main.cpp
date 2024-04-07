@@ -11,6 +11,30 @@
 #include <algorithm>
 #include <functional>
 
+class Timer
+{
+public:
+    void start()
+    {
+        m_startTime = std::chrono::high_resolution_clock::now();
+    }
+
+    void stop()
+    {
+        m_endTime = std::chrono::high_resolution_clock::now();
+    }
+
+    double elapsedMilliseconds() const
+    {
+        std::chrono::duration<double, std::milli> elapsed = m_endTime - m_startTime;
+        return elapsed.count();
+    }
+
+private:
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_endTime;
+};
+
 struct Point
 {
     int x;
@@ -124,7 +148,8 @@ std::pair<int,int> getRegret(int pointIndex, const std::vector<int>& path, const
     return std::make_pair(bestPlacement, regretVal - 0.5 * bestLenDiff);
 }
 
-double calculateMean(const std::vector<int>& vec)
+template <typename T>
+double calculateMean(const std::vector<T>& vec)
 {
     if (vec.empty())
     {
@@ -461,16 +486,20 @@ public:
     {
         Solution sol;
 
-        auto points = instance.points;
+        auto points = std::vector<int>(0, 100);
+        for (int i = 0; i < instance.points.size(); ++i)
+        {
+            points.push_back(i);
+        }
 
         while (!points.empty())
         {
             int randomPointIndex = getRandomNumber(0, points.size() - 1);
-            sol.path1.push_back(randomPointIndex);
+            sol.path1.push_back(points[randomPointIndex]);
             points.erase(points.begin() + randomPointIndex);
 
             randomPointIndex = getRandomNumber(0, points.size() - 1);
-            sol.path2.push_back(randomPointIndex);
+            sol.path2.push_back(points[randomPointIndex]);
             points.erase(points.begin() + randomPointIndex);
         }
 
@@ -555,26 +584,26 @@ ScoredMove intraPathVertexSwap(const Instance& instance, const Solution& sol, bo
     {
         auto& path = *pathPtr;
         const int n = path.size();
-        for (int i = 1; i < n; ++i)
+        for (int i = 1; i < n-1; ++i)
         {
             for (int j = i + 2; j < n; ++j)
             {
-                int v1 = path[i], v1Before = i == 0 ? path[n - 1] : path[i - 1], v1After = path[(i + 1) % n];
-                int v2 = path[j], v2Before = j == 0 ? path[n - 1] : path[j - 1], v2After = path[(j + 1) % n];
-                int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
-                int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+				int v1 = path[i], v1Before = i == 0 ? path[n - 1] : path[i - 1], v1After = path[(i + 1) % n];
+				int v2 = path[j], v2Before = j == 0 ? path[n - 1] : path[j - 1], v2After = path[(j + 1) % n];
+				int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+				int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
 
-                int distanceDelta = distanceAfter - distanceNow;
+				int distanceDelta = distanceAfter - distanceNow;
 
-                if (distanceDelta < bestIntraMove.distanceDelta)
-                {
-                    bestIntraMove = ScoredMove{ i, j, distanceDelta, pathIndex };
+				if (distanceDelta < bestIntraMove.distanceDelta)
+				{
+					bestIntraMove = ScoredMove{ i, j, distanceDelta, pathIndex };
 
-                    if (greedy)
-                    {
-                        return bestIntraMove;
-                    }
-                }
+					if (greedy)
+					{
+						return bestIntraMove;
+					}
+				}
             }
         }
 
@@ -597,12 +626,12 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
         const int n = path.size();
         for (int i = 0; i < n - 2; ++i)
         {
-            for (int j = i + 1; j < n - 1; ++j)
+            for (int j = i + 2; j < n - 1; ++j)
             {
-                int v1 = path[i];
-                int v2 = path[j];
+                int v1 = path[i], v1After = path[(i+1)%n];
+                int v2 = path[j], v2After = path[(j+1)%n];
 
-                int distanceDelta = M[v1][(v1 + 1) % n] - M[v2][(v2 + 1) % n] + M[v1][v2] + M[(v1 + 1) % n][(v2 + 1) % n];
+                int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
 
                 if (distanceDelta < bestMove.distanceDelta)
                 {
@@ -692,7 +721,7 @@ public:
                     pathForBestMove = &sol.path2;
                 }
 
-                std::reverse(pathForBestMove->begin() + bestMove.vertex1, pathForBestMove->begin() + bestMove.vertex2 + 1);
+                std::reverse(pathForBestMove->begin() + bestMove.vertex1 + 1, pathForBestMove->begin() + bestMove.vertex2 + 1);
                 sol.score += bestMove.distanceDelta;
             }
             else
@@ -776,7 +805,7 @@ public:
                     pathForBestMove = &sol.path2;
                 }
 
-                std::reverse(pathForBestMove->begin() + bestMove.vertex1, pathForBestMove->begin() + bestMove.vertex2 + 1);
+                std::reverse(pathForBestMove->begin() + bestMove.vertex1 + 1, pathForBestMove->begin() + bestMove.vertex2 + 1);
                 sol.score += bestMove.distanceDelta;
             }
             else
@@ -832,8 +861,9 @@ void test1(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
 void test2(const std::filesystem::path& workDir, std::vector<Instance>& instances)
 {
-    std::cout << "algorithm, initializer, instance, score\n";
+    std::cout << "algorithm, initializer, instance, score, avg time\n";
 
+    Timer timer;
     LocalSearch* solvers[] = { new GreedyVertexLocalSearch, new GreedyEdgeLocalSearch, new SteepVertexLocalSearch, new SteepEdgeLocalSearch };
     TSPSolver* initializers[] = { new RandomSolver, new GreedyRegret };
 
@@ -844,6 +874,7 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
             for (auto& instance : instances)
             {
                 std::vector<int> scores;
+                std::vector<double> times;
                 int bestScore = std::numeric_limits<int>::max();
                 Solution bestSolution;
 
@@ -851,7 +882,10 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
                 {
                     instance.startIndex = i;
                     Solution initialSolution = initializer->run(instance);
+                    timer.start();
                     Solution solution = solver->run(instance, initialSolution);
+                    timer.stop();
+                    times.push_back(timer.elapsedMilliseconds());
                     int initialScore = initialSolution.getScore(instance);
                     int score = solution.getScore(instance);
                     scores.push_back(score);
@@ -864,12 +898,13 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
                 int worstScore = *std::max_element(scores.begin(), scores.end());
                 int avgScore = calculateMean(scores);
+                double avgTime = calculateMean(times);
 
                 std::string solFileName = instance.name + '-' + solver->getName() + '-' + initializer->getName() + "-solution.txt";
 
                 bestSolution.dump(workDir / solFileName, instance);
 
-                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
+                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << "ms\n";
             }
         }
     }
@@ -888,7 +923,7 @@ int main(int argc, char* argv[])
         instances[instances.size() - 1].load(workDir / instanceName);
     }
 
-    //test1(workDir, instances);
+    // test1(workDir, instances);
     test2(workDir, instances);
 
 

@@ -199,7 +199,7 @@ public:
 class Solution
 {
 public:
-    void dump(std::filesystem::path path)
+    void dump(std::filesystem::path path, const Instance& instance)
     {
         std::ofstream file{ path };
         if (!file.is_open())
@@ -207,43 +207,45 @@ public:
             std::cerr << "Error opening file: " << path << "\n";
         }
 
-        for (const auto& point : path1Points)
+        Point point{};
+        for (const auto& pointIndex : path1)
         {
+            point = instance.points[pointIndex];
             file << point.x << ' ' << point.y << '\n';
         }
         file << '\n';
-        for (const auto& point : path2Points)
+        for (const auto& pointIndex : path2)
         {
+            point = instance.points[pointIndex];
             file << point.x << ' ' << point.y << '\n';
         }
     }
 
-    int getScore()
+    int getScore(const Instance& instance)
     {
         if (path1.size() == 0)
         {
             return std::numeric_limits<int>::max();
         }
 
+        const auto& M = instance.M;
         int score = 0;
         for (int i = 0; i < path1.size() - 1; ++i)
         {
-            score += euclideanDistance(path1Points[i], path1Points[i + 1]);
+            score += M[path1[i]][path1[i + 1]];
         }
         for (int i = 0; i < path2.size() - 1; ++i)
         {
-            score += euclideanDistance(path2Points[i], path2Points[i + 1]);
+            score += M[path2[i]][path2[i + 1]];
         }
-        score += euclideanDistance(path1Points[path1Points.size() - 1], path1Points[0]);
-        score += euclideanDistance(path2Points[path2Points.size() - 1], path2Points[0]);
+		score += M[path1[path1.size()-1]][path1[0]];
+		score += M[path2[path2.size()-1]][path2[0]];
 
         return score;
     }
 
     std::vector<int> path1;
     std::vector<int> path2;
-    std::vector<Point> path1Points;
-    std::vector<Point> path2Points;
     int score;
 };
 
@@ -324,14 +326,6 @@ public:
 
         sol.path1 = paths[0];
         sol.path2 = paths[1];
-        for (int pointIndex : paths[0])
-        {
-            sol.path1Points.push_back(points[pointIndex]);
-        }
-        for (int pointIndex : paths[1])
-        {
-            sol.path2Points.push_back(points[pointIndex]);
-        }
 
         return sol;
     }
@@ -393,14 +387,6 @@ public:
 
         sol.path1 = paths[0];
         sol.path2 = paths[1];
-        for (int pointIndex : paths[0])
-        {
-            sol.path1Points.push_back(points[pointIndex]);
-        }
-        for (int pointIndex : paths[1])
-        {
-            sol.path2Points.push_back(points[pointIndex]);
-        }
 
         return sol;
     }
@@ -461,14 +447,6 @@ public:
 
         sol.path1 = paths[0];
         sol.path2 = paths[1];
-        for (int pointIndex : paths[0])
-        {
-            sol.path1Points.push_back(points[pointIndex]);
-        }
-        for (int pointIndex : paths[1])
-        {
-            sol.path2Points.push_back(points[pointIndex]);
-        }
 
         return sol;
     }
@@ -489,12 +467,10 @@ public:
         {
             int randomPointIndex = getRandomNumber(0, points.size() - 1);
             sol.path1.push_back(randomPointIndex);
-            sol.path1Points.push_back(points[randomPointIndex]);
             points.erase(points.begin() + randomPointIndex);
 
             randomPointIndex = getRandomNumber(0, points.size() - 1);
             sol.path2.push_back(randomPointIndex);
-            sol.path2Points.push_back(points[randomPointIndex]);
             points.erase(points.begin() + randomPointIndex);
         }
 
@@ -654,7 +630,7 @@ public:
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
         Solution sol = initialSolution;
-        sol.score = sol.getScore();
+        sol.score = sol.getScore(instance);
 
         const auto& M = instance.M;
 
@@ -667,12 +643,12 @@ public:
             if (bestInterMove.distanceDelta < bestIntraMove.distanceDelta)
             {
                 std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
-                std::swap(sol.path1Points[bestInterMove.vertex1], sol.path2Points[bestInterMove.vertex2]);
                 sol.score += bestInterMove.distanceDelta;
             }
             else if (bestIntraMove.distanceDelta < bestInterMove.distanceDelta)
             {
                 Path* pathForBestIntraMove = &sol.path1;
+
                 if (bestIntraMove.pathIndex == 1)
                 {
                     pathForBestIntraMove = &sol.path2;
@@ -700,7 +676,7 @@ public:
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
         Solution sol = initialSolution;
-        sol.score = sol.getScore();
+        sol.score = sol.getScore(instance);
 
         const auto& M = instance.M;
 
@@ -738,7 +714,7 @@ public:
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
         Solution sol = initialSolution;
-        sol.score = sol.getScore();
+        sol.score = sol.getScore(instance);
 
         const auto& M = instance.M;
 
@@ -752,7 +728,6 @@ public:
             if (bestInterMove.distanceDelta < bestIntraMove.distanceDelta)
             {
                 std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
-                std::swap(sol.path1Points[bestInterMove.vertex1], sol.path2Points[bestInterMove.vertex2]);
                 sol.score += bestInterMove.distanceDelta;
             }
             else if (bestIntraMove.distanceDelta < bestInterMove.distanceDelta)
@@ -785,7 +760,7 @@ public:
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
         Solution sol = initialSolution;
-        sol.score = sol.getScore();
+        sol.score = sol.getScore(instance);
 
         const auto& M = instance.M;
 
@@ -832,7 +807,7 @@ void test1(const std::filesystem::path& workDir, std::vector<Instance>& instance
             {
                 instance.startIndex = i;
                 Solution solution = solver->run(instance);
-                int score = solution.getScore();
+                int score = solution.getScore(instance);
                 scores.push_back(score);
                 if (score < bestScore)
                 {
@@ -848,7 +823,7 @@ void test1(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
 			std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
 
-			bestSolution.dump(workDir / solFileName);
+			bestSolution.dump(workDir / solFileName, instance);
 
             std::cout << solver->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
         }
@@ -874,8 +849,11 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
                 for (int i = 0; i < 100; ++i)
                 {
-                    Solution solution = solver->run(instance, initializer->run(instance));
-                    int score = solution.getScore();
+                    instance.startIndex = i;
+                    Solution initialSolution = initializer->run(instance);
+                    Solution solution = solver->run(instance, initialSolution);
+                    int initialScore = initialSolution.getScore(instance);
+                    int score = solution.getScore(instance);
                     scores.push_back(score);
                     if (score < bestScore)
                     {
@@ -887,9 +865,9 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
                 int worstScore = *std::max_element(scores.begin(), scores.end());
                 int avgScore = calculateMean(scores);
 
-                std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
+                std::string solFileName = instance.name + '-' + solver->getName() + '-' + initializer->getName() + "-solution.txt";
 
-                bestSolution.dump(workDir / solFileName);
+                bestSolution.dump(workDir / solFileName, instance);
 
                 std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
             }

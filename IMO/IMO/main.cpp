@@ -206,12 +206,12 @@ public:
             std::cerr << "Error opening file: " << path << "\n";
         }
 
-        for (const auto& point : path1)
+        for (const auto& point : path1Points)
         {
             file << point.x << ' ' << point.y << '\n';
         }
         file << '\n';
-        for (const auto& point : path2)
+        for (const auto& point : path2Points)
         {
             file << point.x << ' ' << point.y << '\n';
         }
@@ -227,20 +227,23 @@ public:
         int score = 0;
         for (int i = 0; i < path1.size() - 1; ++i)
         {
-            score += euclideanDistance(path1[i], path1[i + 1]);
+            score += euclideanDistance(path1Points[i], path1Points[i + 1]);
         }
         for (int i = 0; i < path2.size() - 1; ++i)
         {
-            score += euclideanDistance(path1[i], path1[i + 1]);
+            score += euclideanDistance(path2Points[i], path2Points[i + 1]);
         }
-        score += euclideanDistance(path1[path1.size() - 1], path1[0]);
-        score += euclideanDistance(path2[path2.size() - 1], path2[0]);
+        score += euclideanDistance(path1Points[path1Points.size() - 1], path1Points[0]);
+        score += euclideanDistance(path2Points[path2Points.size() - 1], path2Points[0]);
 
         return score;
     }
 
-    std::vector<Point> path1;
-    std::vector<Point> path2;
+    std::vector<int> path1;
+    std::vector<int> path2;
+    std::vector<Point> path1Points;
+    std::vector<Point> path2Points;
+    int score;
 };
 
 class TSPSolver
@@ -318,13 +321,15 @@ public:
             }
         }
 
+        sol.path1 = paths[0];
+        sol.path2 = paths[1];
         for (int pointIndex : paths[0])
         {
-            sol.path1.push_back(points[pointIndex]);
+            sol.path1Points.push_back(points[pointIndex]);
         }
         for (int pointIndex : paths[1])
         {
-            sol.path2.push_back(points[pointIndex]);
+            sol.path2Points.push_back(points[pointIndex]);
         }
 
         return sol;
@@ -385,13 +390,15 @@ public:
             }
         }
 
+        sol.path1 = paths[0];
+        sol.path2 = paths[1];
         for (int pointIndex : paths[0])
         {
-            sol.path1.push_back(points[pointIndex]);
+            sol.path1Points.push_back(points[pointIndex]);
         }
         for (int pointIndex : paths[1])
         {
-            sol.path2.push_back(points[pointIndex]);
+            sol.path2Points.push_back(points[pointIndex]);
         }
 
         return sol;
@@ -451,13 +458,15 @@ public:
             }
         }
 
+        sol.path1 = paths[0];
+        sol.path2 = paths[1];
         for (int pointIndex : paths[0])
         {
-            sol.path1.push_back(points[pointIndex]);
+            sol.path1Points.push_back(points[pointIndex]);
         }
         for (int pointIndex : paths[1])
         {
-            sol.path2.push_back(points[pointIndex]);
+            sol.path2Points.push_back(points[pointIndex]);
         }
 
         return sol;
@@ -473,6 +482,21 @@ public:
     {
         Solution sol;
 
+        auto points = instance.points;
+
+        while (!points.empty())
+        {
+            int randomPointIndex = getRandomNumber(0, points.size() - 1);
+            sol.path1.push_back(randomPointIndex);
+            sol.path1Points.push_back(points[randomPointIndex]);
+            points.erase(points.begin() + randomPointIndex);
+
+            randomPointIndex = getRandomNumber(0, points.size() - 1);
+            sol.path2.push_back(randomPointIndex);
+            sol.path2Points.push_back(points[randomPointIndex]);
+            points.erase(points.begin() + randomPointIndex);
+        }
+
         return sol;
     }
 };
@@ -484,6 +508,22 @@ public:
     virtual ~LocalSearch() {}
     virtual const char* getName() = 0;
     virtual Solution run(const Instance& instance, const Solution& initialSolution) = 0;
+};
+
+class RandomLocalSearch : public LocalSearch
+{
+public:
+    const char* getName() { return "RandomLocalSearch"; }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
+
+        return sol;
+    }
 };
 
 class GreedyVertexLocalSearch : public LocalSearch
@@ -518,6 +558,13 @@ public:
     }
 };
 
+struct ScoredMove
+{
+    int vertex1;
+    int vertex2;
+    int distanceDelta;
+};
+
 class SteepVertexLocalSearch : public LocalSearch
 {
 public:
@@ -525,10 +572,83 @@ public:
 
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
-        Solution sol;
+        Solution sol = initialSolution;
+        sol.score = sol.getScore();
+
         const auto& M = instance.M;
-        const auto& points = instance.points;
-        unsigned int dim = points.size();
+
+        while (true)
+        {
+
+            // inter-path exchange
+            ScoredMove bestInterMove;
+            bestInterMove.distanceDelta = 0;
+            const int n1 = sol.path1.size();
+            const int n2 = sol.path2.size();
+            for (int i = 0; i < n1; ++i)
+            {
+                for (int j = 0; j < n2; ++j)
+                {
+                    int v1 = sol.path1[i], v1Before = i == 0 ? sol.path1[n1 - 1] : sol.path1[i - 1], v1After = sol.path1[(i + 1) % n1];
+                    int v2 = sol.path2[j], v2Before = j == 0 ? sol.path2[n2 - 1] : sol.path2[j - 1], v2After = sol.path2[(j + 1) % n2];
+                    int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+                    int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+
+                    int distanceDelta = distanceAfter - distanceNow;
+
+                    if (distanceDelta < bestInterMove.distanceDelta)
+                    {
+                        bestInterMove = ScoredMove{ i, j, distanceDelta };
+                    }
+                }
+            }
+
+            // intra-path exchange
+            ScoredMove bestIntraMove;
+            bestIntraMove.distanceDelta = 0;
+            auto* pathForBestIntraMove = &sol.path1;
+            for (auto* pathPtr : { &sol.path1, &sol.path2 })
+            {
+                auto& path = *pathPtr;
+                const int n = path.size();
+                for (int i = 1; i < n; ++i)
+                {
+                    for (int j = i + 2; j < n; ++j)
+                    {
+                        int v1 = path[i], v1Before = i == 0 ? path[n - 1] : path[i - 1], v1After = path[(i + 1) % n];
+                        int v2 = path[j], v2Before = j == 0 ? path[n - 1] : path[j - 1], v2After = path[(j + 1) % n];
+                        int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+                        int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+
+                        int scoreDelta = distanceAfter - distanceNow;
+
+                        if (scoreDelta < bestIntraMove.distanceDelta)
+                        {
+                            bestIntraMove = ScoredMove{ i, j, scoreDelta };
+                            pathForBestIntraMove = pathPtr;
+                        }
+                    }
+                }
+            }
+
+            // Apply best move
+            if (bestInterMove.distanceDelta < bestIntraMove.distanceDelta)
+            {
+                std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
+                std::swap(sol.path1Points[bestInterMove.vertex1], sol.path2Points[bestInterMove.vertex2]);
+                sol.score += bestInterMove.distanceDelta;
+            }
+            else if (bestIntraMove.distanceDelta < bestInterMove.distanceDelta)
+            {
+                std::swap(pathForBestIntraMove->at(bestIntraMove.vertex1), pathForBestIntraMove->at(bestIntraMove.vertex2));
+                sol.score += bestInterMove.distanceDelta;
+            }
+            else
+            {
+                break;
+            }
+
+        }
 
         return sol;
     }
@@ -541,10 +661,51 @@ public:
 
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
-        Solution sol;
+        Solution sol = initialSolution;
+        sol.score = sol.getScore();
+
         const auto& M = instance.M;
-        const auto& points = instance.points;
-        unsigned int dim = points.size();
+
+        while (true)
+        {
+            // intra-path exchange
+            ScoredMove bestMove;
+            bestMove.distanceDelta = 0;
+            auto* pathForBestMove = &sol.path1;
+            for (auto* pathPtr : { &sol.path1, &sol.path2 })
+            {
+                auto& path = *pathPtr;
+                const int n = path.size();
+                for (int i = 0; i < n - 2; ++i)
+                {
+                    for (int j = i + 1; j < n - 1; ++j)
+                    {
+                        int v1 = path[i];
+                        int v2 = path[j];
+
+                        int distanceDelta = M[v1][(v1 + 1) % n] - M[v2][(v2 + 1) % n] + M[v1][v2] + M[(v1 + 1) % n][(v2 + 1) % n];
+
+                        if (distanceDelta < bestMove.distanceDelta)
+                        {
+                            bestMove = ScoredMove{ i, j, distanceDelta };
+                            pathForBestMove = pathPtr;
+                        }
+                    }
+                }
+            }
+
+            // Apply best move
+            if (bestMove.distanceDelta < 0)
+            {
+                std::reverse(pathForBestMove->begin() + bestMove.vertex1, pathForBestMove->begin() + bestMove.vertex2 + 1);
+                sol.score += bestMove.distanceDelta;
+            }
+            else
+            {
+                break;
+            }
+
+        }
 
         return sol;
     }

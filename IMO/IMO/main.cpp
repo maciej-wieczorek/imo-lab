@@ -9,6 +9,7 @@
 #include <chrono>
 #include <array>
 #include <algorithm>
+#include <functional>
 
 struct Point
 {
@@ -218,6 +219,11 @@ public:
 
     int getScore()
     {
+        if (path1.size() == 0)
+        {
+            return std::numeric_limits<int>::max();
+        }
+
         int score = 0;
         for (int i = 0; i < path1.size() - 1; ++i)
         {
@@ -240,6 +246,7 @@ public:
 class TSPSolver
 {
 public:
+    virtual ~TSPSolver() {}
     virtual const char* getName() = 0;
     virtual Solution run(const Instance& instance) = 0;
 };
@@ -457,20 +464,95 @@ public:
     }
 };
 
-int main(int argc, char* argv[])
+class RandomSolver : public TSPSolver
 {
-    std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
+public:
+    const char* getName() { return "RandomSolver"; }
 
-
-    std::vector<Instance> instances;
-    std::string instanceNames[] = { "kroA100.tsp.txt", "kroB100.tsp.txt" };
-    for (const auto& instanceName : instanceNames)
+    Solution run(const Instance& instance)
     {
-        instances.emplace_back();
-        instances[instances.size() - 1].load(workDir / instanceName);
-    }
+        Solution sol;
 
-    std::cout << "solver, instance, score\n";
+        return sol;
+    }
+};
+
+
+class LocalSearch
+{
+public:
+    virtual ~LocalSearch() {}
+    virtual const char* getName() = 0;
+    virtual Solution run(const Instance& instance, const Solution& initialSolution) = 0;
+};
+
+class GreedyVertexLocalSearch : public LocalSearch
+{
+public:
+    const char* getName() { return "GreedyVertexLocalSearch"; }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
+
+        return sol;
+    }
+};
+
+class GreedyEdgeLocalSearch : public LocalSearch
+{
+public:
+    const char* getName() { return "GreedyEdgeLocalSearch"; }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
+
+        return sol;
+    }
+};
+
+class SteepVertexLocalSearch : public LocalSearch
+{
+public:
+    const char* getName() { return "SteepVertexLocalSearch"; }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
+
+        return sol;
+    }
+};
+
+class SteepEdgeLocalSearch : public LocalSearch
+{
+public:
+    const char* getName() { return "SteepEdgeLocalSearch"; }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        unsigned int dim = points.size();
+
+        return sol;
+    }
+};
+
+void test1(const std::filesystem::path& workDir, std::vector<Instance>& instances)
+{
+    std::cout << "solver, initializer, instance, score\n";
 
     TSPSolver* solvers[] = { new GreedyNN, new GreedyCycle, new GreedyRegret };
     for (TSPSolver* solver : solvers)
@@ -506,6 +588,66 @@ int main(int argc, char* argv[])
             std::cout << solver->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
         }
     }
+}
+
+void test2(const std::filesystem::path& workDir, std::vector<Instance>& instances)
+{
+    std::cout << "algorithm, initializer, instance, score\n";
+
+    LocalSearch* solvers[] = { new GreedyVertexLocalSearch, new GreedyEdgeLocalSearch, new SteepVertexLocalSearch, new SteepEdgeLocalSearch };
+    TSPSolver* initializers[] = { new RandomSolver, new GreedyRegret };
+
+    for (auto* solver : solvers)
+    {
+        for (auto* initializer : initializers)
+        {
+            for (auto& instance : instances)
+            {
+                std::vector<int> scores;
+                int bestScore = std::numeric_limits<int>::max();
+                Solution bestSolution;
+
+                for (int i = 0; i < 100; ++i)
+                {
+                    Solution solution = solver->run(instance, initializer->run(instance));
+                    int score = solution.getScore();
+                    scores.push_back(score);
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        bestSolution = solution;
+                    }
+                }
+
+                int worstScore = *std::max_element(scores.begin(), scores.end());
+                int avgScore = calculateMean(scores);
+
+                std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
+
+                bestSolution.dump(workDir / solFileName);
+
+                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << ")\n";
+            }
+        }
+    }
+}
+
+int main(int argc, char* argv[])
+{
+    std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
+
+
+    std::vector<Instance> instances;
+    std::string instanceNames[] = { "kroA100.tsp.txt", "kroB100.tsp.txt" };
+    for (const auto& instanceName : instanceNames)
+    {
+        instances.emplace_back();
+        instances[instances.size() - 1].load(workDir / instanceName);
+    }
+
+    //test1(workDir, instances);
+    test2(workDir, instances);
+
 
     return 0;
 }

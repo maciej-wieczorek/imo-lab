@@ -30,6 +30,12 @@ public:
         return elapsed.count();
     }
 
+    double elapsedMillisecondsNow() const
+    {
+        std::chrono::duration<double, std::milli> elapsed = std::chrono::high_resolution_clock::now() - m_startTime;
+        return elapsed.count();
+    }
+
 private:
     std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> m_endTime;
@@ -524,9 +530,55 @@ public:
     Solution run(const Instance& instance, const Solution& initialSolution)
     {
         Solution sol;
-        const auto& M = instance.M;
-        const auto& points = instance.points;
-        unsigned int dim = points.size();
+
+        Timer timer;
+        timer.start();
+
+        while (timer.elapsedMillisecondsNow() >= 1000)
+        {
+            int move = getRandomNumber(0, 2);
+            if (move == 0) // inter vertex swap
+            {
+				int pathIndex = getRandomNumber(0, 1);
+                if (pathIndex == 0)
+                {
+					int v1 = getRandomNumber(0, sol.path1.size());
+					int v2 = v1;
+					while (v2 == v1)
+					{
+						v2 = getRandomNumber(0, sol.path1.size());
+					}
+
+					std::swap(sol.path1.at(v1), sol.path1.at(v2));
+                }
+                else
+                {
+					int v1 = getRandomNumber(0, sol.path2.size());
+					int v2 = v1;
+					while (v2 == v1)
+					{
+						v2 = getRandomNumber(0, sol.path2.size());
+					}
+
+					std::swap(sol.path1.at(v1), sol.path1.at(v2));
+                }
+            }
+            else if (move == 1) // intra vertex swap
+            {
+                int v1 = getRandomNumber(0, sol.path1.size());
+                int v2 = v1;
+				while (v2 == v1)
+				{
+					v2 = getRandomNumber(0, sol.path1.size());
+				}
+            }
+            else if (move == 0) // edge swap
+            {
+                int v1 = getRandomNumber(0, sol.path1.size());
+                int v2 = getRandomNumber(0, sol.path2.size());
+            }
+        }
+
 
         return sol;
     }

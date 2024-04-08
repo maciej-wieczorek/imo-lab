@@ -950,13 +950,15 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
                 int worstScore = *std::max_element(scores.begin(), scores.end());
                 int avgScore = calculateMean(scores);
+                double bestTime = *std::min_element(times.begin(), times.end());
+                double worstTime = *std::max_element(times.begin(), times.end());
                 double avgTime = calculateMean(times);
 
                 std::string solFileName = instance.name + '-' + solver->getName() + '-' + initializer->getName() + "-solution.txt";
 
                 bestSolution.dump(workDir / solFileName, instance);
 
-                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << "ms\n";
+                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << " (" << bestTime << '-' << worstTime << ") ms\n";
             }
         }
     }

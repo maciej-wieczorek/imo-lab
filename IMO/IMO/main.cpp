@@ -847,18 +847,24 @@ public:
 
         while (true)
         {
-            ScoredMove bestMove = edgeSwap(instance, sol, false);
+            ScoredMove bestInterMove = interPathVertexSwap(instance, sol, false);
+            ScoredMove bestIntraMove = edgeSwap(instance, sol, false);
             // Apply best move
-            if (bestMove.distanceDelta < 0)
+            if (bestInterMove.distanceDelta < bestIntraMove.distanceDelta)
+            {
+                std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
+                sol.score += bestInterMove.distanceDelta;
+            }
+            else if (bestIntraMove.distanceDelta < bestInterMove.distanceDelta)
             {
                 Path* pathForBestMove = &sol.path1;
-                if (bestMove.pathIndex == 1)
+                if (bestIntraMove.pathIndex == 1)
                 {
                     pathForBestMove = &sol.path2;
                 }
 
-                std::reverse(pathForBestMove->begin() + bestMove.vertex1 + 1, pathForBestMove->begin() + bestMove.vertex2 + 1);
-                sol.score += bestMove.distanceDelta;
+                std::reverse(pathForBestMove->begin() + bestIntraMove.vertex1 + 1, pathForBestMove->begin() + bestIntraMove.vertex2 + 1);
+                sol.score += bestIntraMove.distanceDelta;
             }
             else
             {
@@ -964,6 +970,59 @@ void test2(const std::filesystem::path& workDir, std::vector<Instance>& instance
     }
 }
 
+void test3(const std::filesystem::path& workDir, std::vector<Instance>& instances)
+{
+    std::cout << "algorithm, initializer, instance, score, avg time\n";
+
+    Timer timer;
+    LocalSearch* solvers[] = { new SteepEdgeLocalSearch };
+    TSPSolver* initializers[] = { new RandomSolver };
+
+    for (auto* solver : solvers)
+    {
+        for (auto* initializer : initializers)
+        {
+            for (auto& instance : instances)
+            {
+                std::vector<int> scores;
+                std::vector<double> times;
+                int bestScore = std::numeric_limits<int>::max();
+                Solution bestSolution;
+
+                for (int i = 0; i < 100; ++i)
+                {
+                    instance.startIndex = i;
+                    Solution initialSolution = initializer->run(instance);
+                    timer.start();
+                    Solution solution = solver->run(instance, initialSolution);
+                    timer.stop();
+                    times.push_back(timer.elapsedMilliseconds());
+                    int initialScore = initialSolution.getScore(instance);
+                    int score = solution.getScore(instance);
+                    scores.push_back(score);
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        bestSolution = solution;
+                    }
+                }
+
+                int worstScore = *std::max_element(scores.begin(), scores.end());
+                int avgScore = calculateMean(scores);
+                double bestTime = *std::min_element(times.begin(), times.end());
+                double worstTime = *std::max_element(times.begin(), times.end());
+                double avgTime = calculateMean(times);
+
+                std::string solFileName = instance.name + '-' + solver->getName() + '-' + initializer->getName() + "-solution.txt";
+
+                bestSolution.dump(workDir / solFileName, instance);
+
+                std::cout << solver->getName() << ", " << initializer->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << " (" << bestTime << '-' << worstTime << ") ms\n";
+            }
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
@@ -978,7 +1037,7 @@ int main(int argc, char* argv[])
     }
 
     // test1(workDir, instances);
-    test2(workDir, instances);
+    test3(workDir, instances);
 
 
     return 0;

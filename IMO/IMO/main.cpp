@@ -10,6 +10,7 @@
 #include <array>
 #include <algorithm>
 #include <functional>
+#include <queue>
 
 class Timer
 {
@@ -57,7 +58,7 @@ int euclideanDistance(const Point& p1, const Point& p2)
 
 int getRandomNumber(int min, int max) {
     static unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    static std::mt19937 generator(seed);
+    static std::mt19937 generator(0);
     std::uniform_int_distribution<int> distribution(min, max);
     return distribution(generator);
 }
@@ -665,6 +666,8 @@ ScoredMove intraPathVertexSwap(const Instance& instance, const Solution& sol, bo
     return bestIntraMove;
 }
 
+
+
 ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 {
     const auto& M = instance.M;
@@ -850,7 +853,11 @@ public:
             ScoredMove bestInterMove = interPathVertexSwap(instance, sol, false);
             ScoredMove bestIntraMove = edgeSwap(instance, sol, false);
             // Apply best move
-            if (bestInterMove.distanceDelta < bestIntraMove.distanceDelta)
+            if (bestInterMove.distanceDelta==bestIntraMove.distanceDelta && bestInterMove.distanceDelta == 0)
+            {
+                break;
+            }
+            else if (bestInterMove.distanceDelta <= bestIntraMove.distanceDelta)
             {
                 std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
                 sol.score += bestInterMove.distanceDelta;
@@ -865,6 +872,442 @@ public:
 
                 std::reverse(pathForBestMove->begin() + bestIntraMove.vertex1 + 1, pathForBestMove->begin() + bestIntraMove.vertex2 + 1);
                 sol.score += bestIntraMove.distanceDelta;
+            }
+            else
+            {
+                break;
+            }
+
+        }
+
+        return sol;
+    }
+};
+
+class SteepEdgeLocalSearchWithLM : public LocalSearch
+{
+public:
+    const char* getName() { return "SteepEdgeLocalSearchWithLM"; }
+
+
+    struct ScoredMoveLM
+    {   
+        struct EdgeData
+        {
+            int v1; // v1 -> v2; v1After -> v2After
+            int v1After;
+            int v2;
+            int v2After;
+            int pathIndex;
+        };
+        struct VertexData
+        {
+            int path1Vertices[3]; // before, vertextoswap, after
+            int path2Vertices[3];
+        };
+
+        bool isedgeswap;
+        int distanceDelta;
+        union
+        {
+            EdgeData edgeData;
+            VertexData vertexData;
+        };
+
+        bool operator<(const ScoredMoveLM& rhs)
+        {
+            return distanceDelta < rhs.distanceDelta;
+        }
+   };
+
+   int cfind(const std::vector<int>& path, int value, int diff)
+   {
+       auto it = std::find(path.begin(), path.end(), value);
+       if (it == path.end())
+       {
+           throw std::exception{};
+       }
+
+       int index = it - path.begin();
+
+       if (diff < 0)
+       {
+           if (index == 0)
+           {
+               return path[path.size() - 1];
+           }
+           
+           return path[index + diff];
+       }
+       else if (diff > 0)
+       {
+           if (index == path.size() - 1)
+           {
+               return path[0];
+           }
+
+           return path[index + diff];
+       }
+       
+       throw std::exception{};
+   }
+
+    using LMQueue = std::vector<ScoredMoveLM>;
+
+    void initializeLM(LMQueue& LM, const Instance& instance, const Solution& sol)
+    {
+        const auto& M = instance.M;
+        int pathIndex = 0;
+        for (auto* pathPtr : { &sol.path1, &sol.path2 })
+        {
+            auto& path = *pathPtr;
+            const int n = path.size();
+            for (int i = 0; i < n - 2; ++i)
+            {
+                for (int j = i + 2; j < n - 1; ++j)
+                {
+                    int v1 = path[i], v1After = path[(i + 1) % n];
+                    int v2 = path[j], v2After = path[(j + 1) % n];
+
+                    int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
+                    
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2, v2After, pathIndex};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2After, v2, pathIndex};
+                        LM.push_back(m);
+                    }
+                }
+            }
+
+            ++pathIndex;
+        }
+
+        const int n1 = sol.path1.size();
+        const int n2 = sol.path2.size();
+        for (int i = 0; i < n1; ++i)
+        {
+            for (int j = 0; j < n2; ++j)
+            {
+                int v1 = sol.path1[i], v1Before = i == 0 ? sol.path1[n1 - 1] : sol.path1[i - 1], v1After = sol.path1[(i + 1) % n1];
+                int v2 = sol.path2[j], v2Before = j == 0 ? sol.path2[n2 - 1] : sol.path2[j - 1], v2After = sol.path2[(j + 1) % n2];
+                int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+                int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+
+                int distanceDelta = distanceAfter - distanceNow;
+
+                if (distanceDelta < 0)
+                {
+                    ScoredMoveLM m;
+                    m.isedgeswap = false;
+                    m.vertexData = {{v1Before, v1, v1After}, {v2Before, v2, v2After}};
+                    m.distanceDelta = distanceDelta;
+                    LM.push_back(m);
+                }
+
+            }
+        }
+    }
+
+    void updateLM(LMQueue& LM, const ScoredMoveLM& appliedMove, const Instance& instance, const Solution& sol)
+    {   
+        using namespace std;
+
+        const auto& M = instance.M;
+        if(appliedMove.isedgeswap)
+        {
+            auto& tmp = appliedMove.edgeData; 
+            auto& path = tmp.pathIndex == 0 ? sol.path1 : sol.path2;
+            int n = path.size();
+            for (int i=0; i<2; i++)
+            {
+                //add new edge swap move for each swapped edge
+                for (int j =0; j < n - 1; ++j)
+                {
+                    int v1, v2, v1After, v2After;
+                    if(i)
+                    {
+                        v1 = tmp.v1After;
+                        v1After = tmp.v2After;                      
+                    }
+                    else
+                    {
+                        v1 = tmp.v1;
+                        v1After = tmp.v2;      
+                    }
+                    
+                    v2 = path[j];
+                    v2After = path[(j + 1) % n];
+                    int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
+                    
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2, v2After, tmp.pathIndex};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2After, v2, tmp.pathIndex};
+                    }
+                }   
+
+
+            }
+
+            const auto& path2 = tmp.pathIndex == 0 ? sol.path2 : sol.path1;
+            int n2 = path2.size();
+            for (int i = 0; i < 4; i++)
+            {
+                for (int j = 0; j < n2; ++j)
+                {
+                    int v1, v1After, v1Before, index;
+                    switch (i)
+                    {
+                    case 0:
+                        v1 = tmp.v1;
+                        
+                        v1Before = cfind(path, v1, -1);
+                        v1After = cfind(path, v1, 1);
+                        break;
+
+                    case 1:
+                        v1 = tmp.v1After;
+                        v1Before = cfind(path, v1, -1);
+                        v1After = cfind(path, v1, 1);
+                        break;
+
+                    case 2:
+                        v1 = tmp.v2;
+                        v1Before = cfind(path, v1, -1);
+                        v1After = cfind(path, v1, 1);
+                        break;
+
+                    case 3:
+                        v1 = tmp.v2After;
+                        v1Before = cfind(path, v1, -1);
+                        v1After = cfind(path, v1, 1);
+                        break;
+
+                    }
+                    
+
+                    int v2 = sol.path2[j], v2Before = j == 0 ? sol.path2[n2 - 1] : sol.path2[j - 1], v2After = sol.path2[(j + 1) % n2];
+                    int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+                    int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+
+                    int distanceDelta = distanceAfter - distanceNow;
+
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = false;
+                        if (tmp.pathIndex == 0)
+                        {
+                            m.vertexData = { {v1Before, v1, v1After}, {v2Before, v2, v2After} };
+                        }
+                        else
+                        {
+                            m.vertexData = { {v2Before, v2, v2After}, {v1Before, v1, v1After} };
+                        }
+                        m.distanceDelta = distanceDelta;
+
+                        LM.push_back(m);
+                    }
+                }
+            }
+        }
+        else if(!appliedMove.isedgeswap)
+        {
+            int Path1VertexAfterSwap= appliedMove.vertexData.path2Vertices[1];
+            int Path2VertexAfterSwap= appliedMove.vertexData.path1Vertices[1];
+
+            int P1v1 = Path1VertexAfterSwap;
+            int P1v1After = cfind(sol.path1, Path1VertexAfterSwap, 1);
+            int P1v12 = cfind(sol.path1, Path1VertexAfterSwap, -1);
+            int P1v1After2 = P1v1;
+
+            int P2v1 = Path2VertexAfterSwap;
+            int P2v1After = cfind(sol.path2, Path2VertexAfterSwap, 1);
+            int P2v12 = cfind(sol.path2, Path2VertexAfterSwap, -1);
+            int P2v1After2 = P2v1;
+
+            int v1, v1After;
+            auto* pPath = &sol.path1;
+            for(int i=0; i<4; i++)
+            {
+                switch(i)
+                {
+                    case 0:
+                        v1 = P1v1;
+                        v1After = P1v1After;
+                        pPath = &sol.path1;
+                        break;
+                    case 1:
+                        v1 = P1v1After;
+                        v1After = P1v1After2;
+                        pPath = &sol.path1;
+                        break;
+                    case 2:
+                        v1 = P2v1;
+                        v1After = P2v1After;
+                        pPath = &sol.path2;
+                        break;
+                    case 3:
+                        v1 = P2v1After;
+                        v1After = P2v1After2;
+                        pPath = &sol.path2;
+                        break;
+                }
+                auto& path = *pPath;
+                int n = path.size();
+                for (int j = 0; j < n - 1; ++j)
+                {
+                    int v2 = path[j], v2After = path[(j + 1) % n];
+                    int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2, v2After, i < 2 ? 0 : 1};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2After, v2, i < 2 ? 0 : 1};
+                        LM.push_back(m);
+                    }
+                }
+            }
+            auto& tmp = appliedMove.vertexData;
+
+            int verticesToCheck[6] ={tmp.path1Vertices[0],tmp.path2Vertices[1], tmp.path1Vertices[2], tmp.path2Vertices[0], tmp.path1Vertices[1], tmp.path2Vertices[2]};
+            
+            for(int i=0; i<6; i++)
+            {   
+                auto& path = i>3 ? sol.path2 : sol.path1;
+                int v1 = verticesToCheck[i];
+                int v1Before = cfind(path, v1, -1);
+                int v1After = cfind(path, v1, 1);
+                int n = i>3 ? sol.path1.size() : sol.path2.size();
+
+                for(int j=0; j<n; j++)
+                {
+                    int v2 = i>3 ? sol.path1[j] : sol.path2[j];
+                    int v2Before = j==0? (i>3 ? sol.path1[sol.path1.size()-1] : sol.path2[sol.path2.size()-1]) : (i>3 ? sol.path1[j-1] : sol.path2[j-1]);
+                    int v2After = (j + 1) % n;
+                    int distanceNow = M[v1][v1After] + M[v1][v1Before] + M[v2][v2Before] + M[v2][v2After];
+                    int distanceAfter = M[v1][v2After] + M[v1][v2Before] + M[v2][v1After] + M[v2][v1Before];
+
+                    int distanceDelta = distanceAfter - distanceNow;
+
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = false;
+                        m.vertexData = {{v1Before, v1, v1After}, {v2Before, v2, v2After}};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                    }
+                }
+
+            }
+
+        }
+        else
+        {
+            std::cerr << "Invalid move type\n";
+            throw std::exception{};
+        }
+    }
+    
+    ScoredMoveLM findBestApplicableMove(LMQueue& LM, const Instance& instance, const Solution& sol)
+    {
+        std::sort(LM.begin(), LM.end());
+
+        ScoredMoveLM bestMove;
+        bestMove.distanceDelta = 0;
+
+        for (auto move = LM.begin(); move != LM.end(); )
+        {
+            if (move->isedgeswap)
+            {
+                auto& tmp = move->edgeData;
+                auto& path1 = tmp.pathIndex == 0 ? sol.path1 : sol.path2;
+                auto p1V1After = cfind(path1, tmp.v1, 1);
+                auto p2V1After = cfind(path1, tmp.v2, 1);
+                if (p1V1After == tmp.v1After && p2V1After == tmp.v2After)
+                {
+                    bestMove = *move;
+                    move = LM.erase(move);
+                    break;
+                }
+                else if (cfind(path1, tmp.v1, 1) == tmp.v1After && cfind(path1, tmp.v2After, 1) == tmp.v2 ||
+                    cfind(path1, tmp.v1After, 1) == tmp.v1 && cfind(path1, tmp.v2, 1) == tmp.v2After)
+                {
+                    ++move;
+                }
+                else if (cfind(path1,tmp.v1After,1) == tmp.v1 && cfind(path1, tmp.v2After, 1) == tmp.v2)
+                {
+                    move = LM.erase(move);
+                }
+                else
+                {
+                    move = LM.erase(move);
+                }
+            }
+            else
+            {
+                // ++move;
+                move = LM.erase(move);
+            }
+        }
+
+        return bestMove;
+    }
+
+    Solution run(const Instance& instance, const Solution& initialSolution)
+    {
+        Solution sol = initialSolution;
+        sol.score = sol.getScore(instance);
+        const auto& M = instance.M;
+
+        LMQueue LM;
+        initializeLM(LM, instance, sol);
+
+        while (true)
+        {
+            ScoredMoveLM bestMove = findBestApplicableMove(LM, instance, sol);
+            std::cout << LM.size() << '\n';
+
+            // Apply move
+            if (bestMove.isedgeswap && bestMove.distanceDelta < 0)
+            {
+                Path* pathForBestMove = &sol.path1;
+                if (bestMove.edgeData.pathIndex == 1)
+                {
+                    pathForBestMove = &sol.path2;
+                }
+
+                int i = std::find(pathForBestMove->begin(), pathForBestMove->end(), bestMove.edgeData.v1) - pathForBestMove->begin();
+                int j = std::find(pathForBestMove->begin(), pathForBestMove->end(), bestMove.edgeData.v2) - pathForBestMove->begin();
+                if (i > j)
+                {
+                    std::swap(i, j);
+                }
+                // std::reverse(std::find(pathForBestMove->begin(), pathForBestMove->end(), bestMove.edgeData.v1) + 1, std::find(pathForBestMove->begin(), pathForBestMove->end(), bestMove.edgeData.v2) + 1);
+                std::reverse(pathForBestMove->begin() + i + 1, pathForBestMove->begin() + j + 1);
+                sol.score += bestMove.distanceDelta;
+
+                updateLM(LM, bestMove, instance, sol);
+            }
+            else if (bestMove.distanceDelta < 0)
+            {
+                std::swap(sol.path1[bestMove.vertexData.path1Vertices[1]], sol.path2[bestMove.vertexData.path1Vertices[1]]);
+                sol.score += bestMove.distanceDelta;
+
+                updateLM(LM, bestMove, instance, sol);
             }
             else
             {
@@ -975,7 +1418,7 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
     std::cout << "algorithm, initializer, instance, score, avg time\n";
 
     Timer timer;
-    LocalSearch* solvers[] = { new SteepEdgeLocalSearch };
+    LocalSearch* solvers[] = { new SteepEdgeLocalSearchWithLM };
     TSPSolver* initializers[] = { new RandomSolver };
 
     for (auto* solver : solvers)

@@ -648,6 +648,8 @@ ScoredMove intraPathVertexSwap(const Instance& instance, const Solution& sol, bo
 
 				int distanceDelta = distanceAfter - distanceNow;
 
+               
+
 				if (distanceDelta < bestIntraMove.distanceDelta)
 				{
 					bestIntraMove = ScoredMove{ i, j, distanceDelta, pathIndex };
@@ -671,7 +673,7 @@ ScoredMove intraPathVertexSwap(const Instance& instance, const Solution& sol, bo
 ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 {
     const auto& M = instance.M;
-
+  
     ScoredMove bestMove;
     bestMove.distanceDelta = 0;
     int pathIndex = 0;
@@ -688,10 +690,7 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 
                 int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
 
-                if (distanceDelta == -5490)
-                {
-                    // std::cout << "dupa\n";
-                }
+              
 
                 if (distanceDelta < bestMove.distanceDelta)
                 {
@@ -707,7 +706,7 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 
         ++pathIndex;
     }
-
+    
     return bestMove;
 }
 
@@ -864,14 +863,14 @@ public:
             }
             else if (bestInterMove.distanceDelta <= bestIntraMove.distanceDelta)
             {
-                std::cout << "vertex swap: " << bestInterMove.distanceDelta << ' ' << bestInterMove.vertex1 << ' ' << bestInterMove.vertex2 << '\n';
+               // std::cout << "vertex swap: " << bestInterMove.distanceDelta << ' ' << bestInterMove.vertex1 << ' ' << bestInterMove.vertex2 << '\n';
 
                 std::swap(sol.path1[bestInterMove.vertex1], sol.path2[bestInterMove.vertex2]);
                 sol.score += bestInterMove.distanceDelta;
             }
             else if (bestIntraMove.distanceDelta < bestInterMove.distanceDelta)
             {
-                std::cout << "edge swap: " << bestIntraMove.distanceDelta << ' ' << bestIntraMove.vertex1 << ' ' << bestIntraMove.vertex2 << ' ' << bestIntraMove.pathIndex << '\n';
+              //  std::cout << "edge swap: " << bestIntraMove.distanceDelta << ' ' << bestIntraMove.vertex1 << ' ' << bestIntraMove.vertex2 << ' ' << bestIntraMove.pathIndex << '\n';
 
                 Path* pathForBestMove = &sol.path1;
                 if (bestIntraMove.pathIndex == 1)
@@ -881,6 +880,7 @@ public:
 
                 std::reverse(pathForBestMove->begin() + bestIntraMove.vertex1 + 1, pathForBestMove->begin() + bestIntraMove.vertex2 + 1);
                 sol.score += bestIntraMove.distanceDelta;
+             
             }
             else
             {
@@ -1004,6 +1004,17 @@ public:
                         m.edgeData = {v1After, v1, v2After, v2, pathIndex};
                         LM.push_back(m);
                     }
+                    int distanceDelta2 = getDistanceDeltaEdgeSwap(M, v1, v1After, v2After, v2);
+                    if (distanceDelta2 < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2After, v2, pathIndex};
+                        m.distanceDelta = distanceDelta2;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2, v2After, pathIndex};
+                        LM.push_back(m);
+                    }
                 }
             }
 
@@ -1044,7 +1055,8 @@ public:
         const auto& M = instance.M;
         if(appliedMove.isedgeswap)
         {
-            
+          
+        
             auto& tmp = appliedMove.edgeData; 
             auto& path = tmp.pathIndex == 0 ? sol.path1 : sol.path2;
             int n = path.size();
@@ -1067,16 +1079,55 @@ public:
                     
                     v2 = path[j];
                     v2After = path[(j + 1) % n];
+
                     int distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2, v2After);
-                    
+
+                    ScoredMoveLM m;
+                    m.isedgeswap = true;
+                    m.distanceDelta = distanceDelta;
+
                     if (distanceDelta < 0)
                     {
-                        ScoredMoveLM m;
-                        m.isedgeswap = true;
+                            
                         m.edgeData = {v1, v1After, v2, v2After, tmp.pathIndex};
-                        m.distanceDelta = distanceDelta;
                         LM.push_back(m);
                         m.edgeData = {v1After, v1, v2After, v2, tmp.pathIndex};
+                        LM.push_back(m);
+                       
+                    }
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2After, v2);
+                    if (distanceDelta < 0)
+                    {
+                        m.distanceDelta = distanceDelta;
+
+                      
+                        m.edgeData = {v1, v1After, v2After, v2, tmp.pathIndex};
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2, v2After, tmp.pathIndex};
+                        LM.push_back(m);
+                    }
+                    v2After = j==0 ? path[n-1] : path[j-1];
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2, v2After);
+                    if (distanceDelta < 0)
+                    {
+                        m.distanceDelta = distanceDelta;
+                                            
+                        
+                        m.edgeData = {v1, v1After, v2, v2After, tmp.pathIndex};
+                        
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2After, v2, tmp.pathIndex};
+                        LM.push_back(m);     
+                    }
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2After, v2);
+                    if (distanceDelta < 0)
+                    {
+
+                      
+                        m.distanceDelta = distanceDelta;
+                        m.edgeData = {v1, v1After, v2After, v2, tmp.pathIndex};
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2, v2After, tmp.pathIndex};
                         LM.push_back(m);
                     }
                 }   
@@ -1140,7 +1191,6 @@ public:
                             m.vertexData = { {v2Before, v2, v2After}, {v1Before, v1, v1After} };
                         }
                         m.distanceDelta = distanceDelta;
-
                         LM.push_back(m);
                     }
                 }
@@ -1211,7 +1261,7 @@ public:
             int verticesToCheck[6] ={tmp.path1Vertices[0],tmp.path2Vertices[1], tmp.path1Vertices[2], tmp.path2Vertices[0], tmp.path1Vertices[1], tmp.path2Vertices[2]};
             
             for(int i=0; i<6; i++)
-            {   // 66 4
+            {   // 4 8 15 3 19 18
                 auto& path = i>=3 ? sol.path2 : sol.path1;
                 int v1 = verticesToCheck[i];
                 int v1Index = std::find(path.begin(), path.end(), v1) - path.begin();
@@ -1234,8 +1284,17 @@ public:
                     {
                         ScoredMoveLM m;
                         m.isedgeswap = false;
-                        m.vertexData = {{v1Before, v1, v1After}, {v2Before, v2, v2After}};
+                        if(i>=3)
+                        {
+                            m.vertexData = {{v2Before, v2, v2After}, {v1Before, v1, v1After}};
+                        }
+                        else
+                        {
+                            m.vertexData = {{v1Before, v1, v1After}, {v2Before, v2, v2After}};
+                        }
+                    
                         m.distanceDelta = distanceDelta;
+
                         LM.push_back(m);
                     }
                 }
@@ -1261,11 +1320,21 @@ public:
         {
             if (move->isedgeswap)
             {
+                if(move->distanceDelta == -2180)
+                {
+                    std::cout << "here\n";
+                }
+               
                 auto& tmp = move->edgeData;
                 auto& path1 = tmp.pathIndex == 0 ? sol.path1 : sol.path2;
                 auto p1V1After = cfind(path1, tmp.v1, 1);
                 auto p2V1After = cfind(path1, tmp.v2, 1);
-                if (p1V1After == tmp.v1After && p2V1After == tmp.v2After)
+                if(p1V1After == tmp.v2 || p2V1After == tmp.v1)
+                {
+                    move = LM.erase(move);
+                    
+                }
+                else if (p1V1After == tmp.v1After && p2V1After == tmp.v2After)
                 {
                     bestMove = *move;
                     move = LM.erase(move);
@@ -1296,6 +1365,7 @@ public:
                 
                 if(cfind(sol.path1,P1,0)==-1 || cfind(sol.path2,P2,0)==-1)
                 {
+                   
                     move = LM.erase(move);
                     
                 }
@@ -1310,6 +1380,7 @@ public:
                 }
                 else 
                 {
+                   
                     move = LM.erase(move);
                 }
             }
@@ -1332,11 +1403,11 @@ public:
             ScoredMoveLM bestMove = findBestApplicableMove(LM, instance, sol);
             if(bestMove.isedgeswap)
             {
-                std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.pathIndex << '\n';
+               std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.pathIndex << '\n';
             }
             else
             {
-                std::cout << "vertexswap: " << bestMove.distanceDelta << ' ' << bestMove.vertexData.path1Vertices[1] << ' ' << bestMove.vertexData.path2Vertices[1] << '\n';
+               std::cout << "vertex swap: " << bestMove.distanceDelta << ' ' << bestMove.vertexData.path1Vertices[1] << ' ' << bestMove.vertexData.path2Vertices[1] << '\n';
             }
 
             // Apply move
@@ -1364,6 +1435,18 @@ public:
                 }
                 else
                 {
+                    std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v1After << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.v2After << '\n';
+                    for(auto& v : sol.path1)
+                    {
+                        std::cout << v << ' ';
+                    }
+                    std::cout << '\n';
+                    for(auto& v : sol.path2)
+                    {
+                        std::cout << v << ' ';
+                    }
+                    std::cout << '\n';
+                    return sol;
                     throw std::exception{};
                 }
 
@@ -1543,6 +1626,7 @@ void test1(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
             for (int i = 0; i < 100; ++i)
             {
+                
                 instance.startIndex = i;
                 Solution solution = solver->run(instance);
                 int score = solution.getScore(instance);
@@ -1642,7 +1726,8 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
                 Solution bestSolution;
 
                 for (int i = 0; i < 1; ++i)
-                {
+                {   
+                    printf("Instance: %s, Start index: %d\n", instance.name.c_str(), i);
                     instance.startIndex = i;
                     // Solution initialSolution = initializer->run(instance);
                     Solution initialSolution = debugInitialSolution;

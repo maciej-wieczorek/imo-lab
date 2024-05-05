@@ -1783,7 +1783,7 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
     std::cout << "algorithm, initializer, instance, score, avg time\n";
 
     Timer timer;
-    LocalSearch* solvers[] = { new CandidateLocalSearch };
+    LocalSearch* solvers[] = { new SteepEdgeLocalSearchWithLM };
     TSPSolver* initializers[] = { new RandomSolver };
 
     Solution debugInitialSolution = initializers[0]->run(instances[0]);
@@ -1800,7 +1800,6 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
                 for (int i = 0; i < 1; ++i)
                 {   
-                    printf("Instance: %s, Start index: %d\n", instance.name.c_str(), i);
                     instance.startIndex = i;
                     // Solution initialSolution = initializer->run(instance);
                     Solution initialSolution = debugInitialSolution;

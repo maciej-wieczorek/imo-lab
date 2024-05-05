@@ -1252,6 +1252,7 @@ public:
                 for (int j = 0; j < n - 1; ++j)
                 {
                     int v2 = path[j], v2After = path[(j + 1) % n];
+
                     int distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2, v2After);
                     if (distanceDelta < 0)
                     {
@@ -1274,6 +1275,30 @@ public:
                         m.edgeData = {v1After, v1, v2, v2After, i < 2 ? 0 : 1};
                         LM.push_back(m);
                     }
+                    v2After = j == 0 ? path[n - 1] : path[j - 1];
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2, v2After);
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2, v2After, i < 2 ? 0 : 1};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2After, v2, i < 2 ? 0 : 1};
+                        LM.push_back(m);
+                    }
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2After, v2);
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2After, v2, i < 2 ? 0 : 1};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2, v2After, i < 2 ? 0 : 1};
+                        LM.push_back(m);
+                    }
+
                 }
             }
             auto& tmp = appliedMove.vertexData;

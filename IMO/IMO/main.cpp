@@ -673,7 +673,7 @@ ScoredMove intraPathVertexSwap(const Instance& instance, const Solution& sol, bo
 ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 {
     const auto& M = instance.M;
-  
+    int flag = 0;
     ScoredMove bestMove;
     bestMove.distanceDelta = 0;
     int pathIndex = 0;
@@ -690,8 +690,12 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 
                 int distanceDelta = M[v1][v2] + M[v1After][v2After] - M[v1][v1After] - M[v2][v2After];
 
-              
-
+                if(distanceDelta == -2180)
+                {   
+                    std::cout << "edge swap: " << distanceDelta << ' ' << v1 << ' ' << v1After << ' ' << v2 << ' ' << v2After <<' ' << pathIndex << '\n';
+                    flag = 1;
+                }
+            
                 if (distanceDelta < bestMove.distanceDelta)
                 {
                     bestMove = ScoredMove{ i, j, distanceDelta, pathIndex };
@@ -705,6 +709,11 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
         }
 
         ++pathIndex;
+    }
+
+    if (flag)
+    {
+        std::cout << "best move: " << bestMove.distanceDelta << ' ' << bestMove.vertex1 << ' ' << bestMove.vertex2 << ' ' << bestMove.pathIndex << '\n';
     }
     
     return bestMove;
@@ -1252,6 +1261,17 @@ public:
                         m.distanceDelta = distanceDelta;
                         LM.push_back(m);
                         m.edgeData = {v1After, v1, v2After, v2, i < 2 ? 0 : 1};
+                        LM.push_back(m);
+                    }
+                    distanceDelta = getDistanceDeltaEdgeSwap(M, v1, v1After, v2After, v2);
+                    if (distanceDelta < 0)
+                    {
+                        ScoredMoveLM m;
+                        m.isedgeswap = true;
+                        m.edgeData = {v1, v1After, v2After, v2, i < 2 ? 0 : 1};
+                        m.distanceDelta = distanceDelta;
+                        LM.push_back(m);
+                        m.edgeData = {v1After, v1, v2, v2After, i < 2 ? 0 : 1};
                         LM.push_back(m);
                     }
                 }

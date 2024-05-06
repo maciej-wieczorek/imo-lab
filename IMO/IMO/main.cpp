@@ -692,7 +692,7 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 
                 if(distanceDelta == -2180)
                 {   
-                    std::cout << "edge swap: " << distanceDelta << ' ' << v1 << ' ' << v1After << ' ' << v2 << ' ' << v2After <<' ' << pathIndex << '\n';
+                    // std::cout << "edge swap: " << distanceDelta << ' ' << v1 << ' ' << v1After << ' ' << v2 << ' ' << v2After <<' ' << pathIndex << '\n';
                     flag = 1;
                 }
             
@@ -713,7 +713,7 @@ ScoredMove edgeSwap(const Instance& instance, const Solution& sol, bool greedy)
 
     if (flag)
     {
-        std::cout << "best move: " << bestMove.distanceDelta << ' ' << bestMove.vertex1 << ' ' << bestMove.vertex2 << ' ' << bestMove.pathIndex << '\n';
+        // std::cout << "best move: " << bestMove.distanceDelta << ' ' << bestMove.vertex1 << ' ' << bestMove.vertex2 << ' ' << bestMove.pathIndex << '\n';
     }
     
     return bestMove;
@@ -1342,7 +1342,7 @@ public:
             {
                 if(move->distanceDelta == -2180)
                 {
-                    std::cout << "here\n";
+                    // std::cout << "here\n";
                 }
                
                 auto& tmp = move->edgeData;
@@ -1423,11 +1423,11 @@ public:
             ScoredMoveLM bestMove = findBestApplicableMove(LM, instance, sol);
             if(bestMove.isedgeswap)
             {
-               std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.pathIndex << '\n';
+               // std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.pathIndex << '\n';
             }
             else
             {
-               std::cout << "vertex swap: " << bestMove.distanceDelta << ' ' << bestMove.vertexData.path1Vertices[1] << ' ' << bestMove.vertexData.path2Vertices[1] << '\n';
+               // std::cout << "vertex swap: " << bestMove.distanceDelta << ' ' << bestMove.vertexData.path1Vertices[1] << ' ' << bestMove.vertexData.path2Vertices[1] << '\n';
             }
 
             // Apply move
@@ -1455,17 +1455,17 @@ public:
                 }
                 else
                 {
-                    std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v1After << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.v2After << '\n';
+                    // std::cout << "edge swap: " << bestMove.distanceDelta << ' ' << bestMove.edgeData.v1 << ' ' << bestMove.edgeData.v1After << ' ' << bestMove.edgeData.v2 << ' ' << bestMove.edgeData.v2After << '\n';
                     for(auto& v : sol.path1)
                     {
                         std::cout << v << ' ';
                     }
-                    std::cout << '\n';
+                    // std::cout << '\n';
                     for(auto& v : sol.path2)
                     {
                         std::cout << v << ' ';
                     }
-                    std::cout << '\n';
+                    // std::cout << '\n';
                     return sol;
                     throw std::exception{};
                 }
@@ -1804,7 +1804,7 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
 
     Timer timer;
     LocalSearch* solvers[] = { new SteepEdgeLocalSearchWithLM };
-    TSPSolver* initializers[] = { new RandomSolver };
+    TSPSolver* initializers[] = { new RandomSolver, new GreedyRegret };
 
     Solution debugInitialSolution = initializers[0]->run(instances[0]);
     for (auto* solver : solvers)
@@ -1818,11 +1818,11 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
                 int bestScore = std::numeric_limits<int>::max();
                 Solution bestSolution;
 
-                for (int i = 0; i < 1; ++i)
+                for (int i = 0; i < 100; ++i)
                 {   
                     instance.startIndex = i;
-                    // Solution initialSolution = initializer->run(instance);
-                    Solution initialSolution = debugInitialSolution;
+                    Solution initialSolution = initializer->run(instance);
+                    //Solution initialSolution = debugInitialSolution;
                     timer.start();
                     Solution solution = solver->run(instance, initialSolution);
                     timer.stop();

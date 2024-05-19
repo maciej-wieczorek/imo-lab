@@ -56,11 +56,28 @@ int euclideanDistance(const Point& p1, const Point& p2)
     return std::round(std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2)));
 }
 
-int getRandomNumber(int min, int max) {
+std::mt19937& getRandomGenerator()
+{
     static unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    //static std::mt19937 generator(seed);
     static std::mt19937 generator(0);
+
+    return generator;
+}
+
+int getRandomNumber(int min, int max)
+{
     std::uniform_int_distribution<int> distribution(min, max);
-    return distribution(generator);
+    return distribution(getRandomGenerator());
+}
+
+template <typename T>
+void removeNRandomElements(std::vector<T>& vec, int n)
+{
+    for (int i = 0; i < n; ++i)
+    {
+        vec.erase(vec.begin() + getRandomNumber(0, vec.size()));
+    }
 }
 
 int getFurthestindex(int index, const DistanceMatrix& M)
@@ -1727,7 +1744,176 @@ public:
     }
 };
 
+class MultipleStartLocalSearch : public TSPSolver
+{
+public:
+    const char* getName() { return "MultipleStartLocalSearch"; }
 
+    using LocalSearchAlgorithm = SteepEdgeLocalSearch;
+    using LocalSearchInitializer = RandomSolver;
+    static constexpr int iterCount = 100;
+
+    Solution run(const Instance& instance)
+    {
+        LocalSearchInitializer lsInitializer;
+        LocalSearchAlgorithm lsAlgo;
+
+        Solution bestSol;
+
+        for (int i = 0; i < iterCount; ++i)
+        {
+            Solution startSol = lsInitializer.run(instance);
+            Solution sol = lsAlgo.run(instance, startSol);
+
+            if (bestSol.score == 0 || sol.score < bestSol.score)
+            {
+                bestSol = sol;
+            }
+
+            std::cout << "MSLS iter: " << i+1 << '/' << iterCount << "   \r";
+        }
+
+        return bestSol;
+    }
+};
+
+class IteratedLocalSearch1 : public TSPSolver
+{
+public:
+    const char* getName() { return "IteratedLocalSearch1"; }
+
+    using LocalSearchAlgorithm = SteepEdgeLocalSearch;
+    using LocalSearchInitializer = RandomSolver;
+    static constexpr int iterCount = 1000;
+
+    void edgeSwap(Path* path, int v1, int v2)
+    {
+        if (v1 > v2)
+        {
+            std::swap(v1, v2);
+        }
+        std::reverse(path->begin() + v1 + 1, path->begin() + v2 + 1);
+    }
+
+    void vertexSwap(Solution& sol, int v1, int v2)
+    {
+        std::swap(sol.path1[v1], sol.path2[v2]);
+    }
+
+    void perturb(const Instance& instance, Solution& solution)
+    {
+        int numOfEdgeSwaps = getRandomNumber(2, 4);
+        int numOfVertexSwaps = getRandomNumber(2, 4);
+        Path* paths[] = { &solution.path1, &solution.path2 };
+
+        // random order of vertex or edge swaps
+        while (numOfEdgeSwaps > 0 || numOfVertexSwaps > 0)
+        {
+            if ((getRandomNumber(0, 1) && numOfEdgeSwaps > 0) || numOfVertexSwaps == 0)
+            {
+                // edge swap
+                int pathIndex = getRandomNumber(0, 1);
+                Path* path = paths[getRandomNumber(0, 1)];
+                int v1 = getRandomNumber(0, path->size() - 1);
+                int v2 = v1;
+                while (v2 == v1) // avoid chosing v1 == v2
+                {
+                    v2 = getRandomNumber(0, path->size() - 1);
+                }
+                edgeSwap(path, v1, v2);
+                --numOfEdgeSwaps;
+            }
+            else
+            {
+                // vertex swap
+                int v1 = getRandomNumber(0, paths[0]->size() - 1);
+                int v2 = getRandomNumber(0, paths[1]->size() - 1);
+                vertexSwap(solution, v1, v2);
+                --numOfVertexSwaps;
+            }
+        }
+    }
+
+    Solution run(const Instance& instance)
+    {
+        LocalSearchInitializer lsInitializer;
+        LocalSearchAlgorithm lsAlgo;
+
+        Solution startSol = lsInitializer.run(instance);
+
+        Solution bestSol = lsAlgo.run(instance, startSol);
+        bestSol.getScore(instance);
+
+        for (int i = 0; i < iterCount; ++i)
+        {
+            Solution sol = bestSol;
+            perturb(instance, sol);
+
+            sol = lsAlgo.run(instance, sol);
+            sol.getScore(instance);
+
+            if (sol.score < bestSol.score)
+            {
+                bestSol = sol;
+            }
+
+            std::cout << "ILS1 iter: " << i+1 << '/' << iterCount << "   \r";
+        }
+
+        return bestSol;
+    }
+};
+
+class IteratedLocalSearch2 : public TSPSolver
+{
+public:
+    const char* getName() { return "IteratedLocalSearch2"; }
+
+    using LocalSearchAlgorithm = SteepEdgeLocalSearch;
+    using LocalSearchInitializer = RandomSolver;
+    static constexpr int iterCount = 300;
+
+    void destroy(Solution& solution)
+    {
+        // TODO: also remove edges, select better places for removal
+        int n = getRandomNumber(20, 30);
+        removeNRandomElements(solution.path1, n);
+        removeNRandomElements(solution.path2, n);
+    }
+
+    void repair(const Instance& instance, Solution& solution)
+    {
+        // TODO
+    }
+
+    Solution run(const Instance& instance)
+    {
+        LocalSearchInitializer lsInitializer;
+        LocalSearchAlgorithm lsAlgo;
+
+        Solution startSol = lsInitializer.run(instance);
+
+        Solution bestSol = lsAlgo.run(instance, startSol);
+
+        for (int i = 0; i < iterCount; ++i)
+        {
+            Solution sol = bestSol;
+            destroy(sol);
+            repair(instance, sol);
+
+            sol = lsAlgo.run(instance, sol);
+
+            if (sol.score < bestSol.score)
+            {
+                bestSol = sol;
+            }
+
+            std::cout << "ILS2 iter: " << i+1 << '/' << iterCount << "   \r";
+        }
+
+        return bestSol;
+    }
+};
 
 void test1(const std::filesystem::path& workDir, std::vector<Instance>& instances)
 {
@@ -1878,6 +2064,53 @@ void test3(const std::filesystem::path& workDir, std::vector<Instance>& instance
     }
 }
 
+void test4(const std::filesystem::path& workDir, std::vector<Instance>& instances)
+{
+    std::cout << "algorithm, instance, score, avg time\n";
+
+    Timer timer;
+    TSPSolver* solvers[] = { new MultipleStartLocalSearch, new IteratedLocalSearch1 };
+
+    for (auto* solver : solvers)
+    {
+        for (auto& instance : instances)
+        {
+            std::vector<int> scores;
+            std::vector<double> times;
+            int bestScore = std::numeric_limits<int>::max();
+            Solution bestSolution;
+
+            for (int i = 0; i < 10; ++i)
+            {   
+                instance.startIndex = i;
+                timer.start();
+                Solution solution = solver->run(instance);
+                timer.stop();
+                times.push_back(timer.elapsedMilliseconds());
+                int score = solution.getScore(instance);
+                scores.push_back(score);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestSolution = solution;
+                }
+            }
+
+            int worstScore = *std::max_element(scores.begin(), scores.end());
+            int avgScore = calculateMean(scores);
+            double bestTime = *std::min_element(times.begin(), times.end());
+            double worstTime = *std::max_element(times.begin(), times.end());
+            double avgTime = calculateMean(times);
+
+            std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
+
+            bestSolution.dump(workDir / solFileName, instance);
+
+            std::cout << solver->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << " (" << bestTime << '-' << worstTime << ") ms\n";
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
@@ -1892,7 +2125,7 @@ int main(int argc, char* argv[])
     }
 
     //test1(workDir, instances);
-     test3(workDir, instances);
+     test4(workDir, instances);
 
 
     return 0;

@@ -1872,18 +1872,62 @@ public:
     using LocalSearchAlgorithm = SteepEdgeLocalSearch;
     using LocalSearchInitializer = RandomSolver;
     static constexpr int iterCount = 300;
+    std::set<int> unVisited;
+    std::array<std::vector<int>, 2> paths;
+    
 
-    void destroy(Solution& solution)
-    {
+    void destroy(Solution& solution, const Instance& instance)
+    {   
+        const auto& M = instance.M;
         // TODO: also remove edges, select better places for removal
         int n = getRandomNumber(20, 30);
-        removeNRandomElements(solution.path1, n);
-        removeNRandomElements(solution.path2, n);
+    
+        for (int i = 0; i < n; ++i)
+        {
+            int v = getRandomNumber(0, solution.path1.size() - 1);
+            unVisited.insert(solution.path1[v]);
+            solution.path1.erase(solution.path1.begin() + v);
+            unVisited.insert(solution.path2[v]);
+            solution.path2.erase(solution.path2.begin() + v);
+        }
+        
     }
 
     void repair(const Instance& instance, Solution& solution)
     {
-        // TODO
+        paths[0] = solution.path1;
+        paths[1] = solution.path2;
+        const auto& M = instance.M;
+        const auto& points = instance.points;
+        
+         while (!unVisited.empty())
+        {
+            for (auto& path : paths)
+            {
+				int minLenDiff = std::numeric_limits<int>::max();
+				int bestPlacement = -1;
+				int bestPoint = -1;
+
+                for (int i = 0; i < path.size(); ++i)
+                {
+					for (int pointIndex : unVisited)
+					{
+                        int lenDiff = getLenDiff(i, pointIndex, path, M);
+						if (lenDiff < minLenDiff)
+						{
+							minLenDiff = lenDiff;
+							bestPoint = pointIndex;
+                            bestPlacement = i;
+						}
+					}
+                }
+
+				unVisited.erase(bestPoint);
+                path.insert(path.begin() + bestPlacement + 1, bestPoint);
+            }
+        }
+        solution.path1 = paths[0];
+        solution.path2 = paths[1];
     }
 
     Solution run(const Instance& instance)
@@ -1898,7 +1942,7 @@ public:
         for (int i = 0; i < iterCount; ++i)
         {
             Solution sol = bestSol;
-            destroy(sol);
+            destroy(sol,instance);
             repair(instance, sol);
 
             sol = lsAlgo.run(instance, sol);
@@ -2069,7 +2113,7 @@ void test4(const std::filesystem::path& workDir, std::vector<Instance>& instance
     std::cout << "algorithm, instance, score, avg time\n";
 
     Timer timer;
-    TSPSolver* solvers[] = { new MultipleStartLocalSearch, new IteratedLocalSearch1 };
+    TSPSolver* solvers[] = { new MultipleStartLocalSearch, new IteratedLocalSearch1, new IteratedLocalSearch2 };
 
     for (auto* solver : solvers)
     {
@@ -2080,7 +2124,7 @@ void test4(const std::filesystem::path& workDir, std::vector<Instance>& instance
             int bestScore = std::numeric_limits<int>::max();
             Solution bestSolution;
 
-            for (int i = 0; i < 10; ++i)
+            for (int i = 0; i < 3; ++i) // TODO change to 10
             {   
                 instance.startIndex = i;
                 timer.start();
@@ -2124,7 +2168,7 @@ int main(int argc, char* argv[])
         instances[instances.size() - 1].load(workDir / instanceName);
     }
 
-    //test1(workDir, instances);
+   // test3(workDir, instances);
      test4(workDir, instances);
 
 

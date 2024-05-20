@@ -1784,7 +1784,7 @@ public:
 
     using LocalSearchAlgorithm = SteepEdgeLocalSearch;
     using LocalSearchInitializer = RandomSolver;
-    static constexpr int iterCount = 1000;
+    static constexpr int iterCount = 1800;
 
     void edgeSwap(Path* path, int v1, int v2)
     {
@@ -1871,7 +1871,7 @@ public:
 
     using LocalSearchAlgorithm = SteepEdgeLocalSearch;
     using LocalSearchInitializer = RandomSolver;
-    static constexpr int iterCount = 300;
+    static constexpr int iterCount = 1400;
     std::set<int> unVisited;
     std::array<std::vector<int>, 2> paths;
     
@@ -2124,7 +2124,7 @@ void test4(const std::filesystem::path& workDir, std::vector<Instance>& instance
             int bestScore = std::numeric_limits<int>::max();
             Solution bestSolution;
 
-            for (int i = 0; i < 3; ++i) // TODO change to 10
+            for (int i = 0; i < 10; ++i)
             {   
                 instance.startIndex = i;
                 timer.start();

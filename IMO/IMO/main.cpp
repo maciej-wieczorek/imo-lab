@@ -278,7 +278,7 @@ public:
         }
 
         const auto& M = instance.M;
-        int score = 0;
+        score = 0;
         for (int i = 0; i < path1.size() - 1; ++i)
         {
             score += M[path1[i]][path1[i + 1]];
@@ -915,6 +915,7 @@ public:
 
         }
 
+        sol.getScore(instance);
         return sol;
     }
 };
@@ -1959,6 +1960,316 @@ public:
     }
 };
 
+class HAE : public TSPSolver
+{
+public:
+    const char* getName() { return "HAE"; }
+
+    using LocalSearchAlgorithm = SteepEdgeLocalSearch;
+    using LocalSearchInitializer = RandomSolver;
+    static constexpr int populationSize = 20;
+    static constexpr int iterCount = 1400;
+
+    static bool solutionExists(const std::vector<Solution>& solutions, const Solution& solution)
+    {
+        for (const auto& sol : solutions)
+        {
+            if (sol.score == solution.score)
+            {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    static Solution recombine(const Solution& sol1, const Solution& sol2, const Instance& instance)
+    {
+        // randomly choose parent solution
+        Solution s1;
+        const Solution* s2;
+        if (getRandomNumber(0, 1))
+        {
+            s1 = sol1;
+            s2 = &sol2;
+        }
+        else
+        {
+            s1 = sol2;
+            s2 = &sol1;
+        }
+
+        std::vector<Path*> s1Paths = { &s1.path1, &s1.path2 };
+
+
+        // remove not shared parts
+
+        // first find common parts
+        std::vector<std::vector<bool>> commonParts(s1Paths.size(), std::vector<bool>(s1.path1.size()));
+
+        for (int path1Idx = 0; path1Idx < s1Paths.size(); ++path1Idx)
+        {
+            auto* path1 = s1Paths[path1Idx];
+            std::vector<bool>& commonPart = commonParts[path1Idx];
+
+            for (int i = 0; i < path1->size() - 1; ++i)
+            {
+                for (const auto* path2 : std::vector<const Path*>{ &s2->path1, &s2->path2 })
+                {
+                    if (i >= path1->size() - 1)
+                    {
+                        break;
+                    }
+
+                    for (int j = 0; j < path2->size() - 1; ++j)
+                    {
+                        if (path1->at(i) == path2->at(j) && path1->at(i + 1) == path2->at(j + 1))
+                        {
+                            while (i < path1->size() && j < path2->size() && path1->at(i) == path2->at(j))
+                            {
+                                commonPart[i] = true;
+                                ++i;
+                                ++j;
+                            }
+                            
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        std::set<int> unVisited;
+
+        // then set -1 in places that are not common
+        for (int pathIdx = 0; pathIdx < s1Paths.size(); ++pathIdx)
+        {
+            auto* path = s1Paths[pathIdx];
+            std::vector<bool>& commonPart = commonParts[pathIdx];
+
+            for (int i = 0; i < path->size() - 1; ++i)
+            {
+                if (!commonPart[i])
+                {
+                    unVisited.insert(path->at(i));
+                    path->at(i) = -1;
+                }
+            }
+        }
+
+        // remove isolated points
+        for (auto* path : std::vector<Path*>{ &s1.path1, &s1.path2 })
+        {
+            for (int i = 0; i < path->size(); ++i)
+            {
+                if (path->at(i) == -1)
+                {
+                    continue;
+                }
+
+                int n1, n2;
+                if (i == 0)
+                {
+                    n1 = path->size() - 1;
+                    n2 = i + 1;
+                }
+                else if (i == path->size() - 1)
+                {
+                    n1 = i - 1;
+                    n2 = 0;
+                }
+                else
+                {
+                    n1 = i - 1;
+                    n2 = i + 1;
+                }
+
+                if (path->at(n1) == -1 && path->at(n2) == -1)
+                {
+                    unVisited.insert(path->at(i));
+                    path->at(i) = -1;
+                }
+            }
+        }
+
+        // remove the empty spaces
+        s1.path1.erase(std::remove(s1.path1.begin(), s1.path1.end(), -1), s1.path1.end());
+        s1.path2.erase(std::remove(s1.path2.begin(), s1.path2.end(), -1), s1.path2.end());
+
+        // repair
+        const int desiredPathLen = sol2.path1.size();
+        while (!unVisited.empty())
+        {
+            for (auto* path : std::vector<Path*>{ &s1.path1, &s1.path2 })
+            {
+                if (path->size() == 0)
+                {
+                    path->push_back(*unVisited.begin());
+                    unVisited.erase(unVisited.begin());
+                }
+
+                if (path->size() == desiredPathLen)
+                {
+                    continue;
+                }
+
+				int minLenDiff = std::numeric_limits<int>::max();
+				int bestPlacement = -1;
+				int bestPoint = -1;
+
+                for (int i = 0; i < path->size(); ++i)
+                {
+					for (int pointIndex : unVisited)
+					{
+                        int lenDiff = getLenDiff(i, pointIndex, *path, instance.M);
+						if (lenDiff < minLenDiff)
+						{
+							minLenDiff = lenDiff;
+							bestPoint = pointIndex;
+                            bestPlacement = i;
+						}
+					}
+                }
+
+				unVisited.erase(bestPoint);
+                path->insert(path->begin() + bestPlacement + 1, bestPoint);
+            }
+        }
+
+        s1.getScore(instance);
+        return s1;
+    }
+
+    static int getWorstSolIdx(const std::vector<Solution>& solutions)
+    {
+        int worstScoreIdx = 0;
+        int worstScore = solutions[worstScoreIdx].score;
+
+        for (int i = 0; i < solutions.size(); ++i)
+        {
+            if (solutions[i].score > worstScore)
+            {
+                worstScore = solutions[i].score;
+                worstScoreIdx = i;
+            }
+        }
+
+        return worstScoreIdx;
+    }
+
+    static int getBestSolIdx(const std::vector<Solution>& solutions)
+    {
+        int bestScoreIdx = 0;
+        int bestScore = solutions[bestScoreIdx].score;
+
+        for (int i = 0; i < solutions.size(); ++i)
+        {
+            if (solutions[i].score < bestScore)
+            {
+                bestScore = solutions[i].score;
+                bestScoreIdx = i;
+            }
+        }
+
+        return bestScoreIdx;
+    }
+
+    static bool isDifferentEnough(const std::vector<Solution>& solutions, const Solution& solution)
+    {
+        for (const auto& sol : solutions)
+        {
+            if (sol.score == solution.score)
+            {
+                return false;
+            }
+        }
+
+        /*
+        std::vector<const Path*> s1Paths = { &solution.path1, &solution.path2 };
+        for (const auto* path1 : s1Paths)
+        {
+            for (const auto& sol : solutions)
+            {
+                std::vector<const Path*> s2Paths = { &sol.path1, &sol.path2 };
+                for (const auto* path2 : s2Paths)
+                {
+                    int countDiff = 0;
+                    for (const auto& point : *path1)
+                    {
+                        if (std::find(path2->begin(), path2->end(), point) == path2->end())
+                        {
+                            ++countDiff;
+                            if (countDiff > 0.05 * path1->size())
+                            {
+                                break;
+                            }
+                        }
+
+                    }
+
+                    if (countDiff <= 0.05 * path1->size())
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        */
+
+        return true;
+    }
+   
+    Solution run(const Instance& instance)
+    {
+        std::vector<Solution> population;
+        // initial population
+        while (population.size() < populationSize)
+        {
+            Solution newSolution = LocalSearchAlgorithm().run(instance, LocalSearchInitializer().run(instance));
+            if (!solutionExists(population, newSolution))
+            {
+                population.push_back(newSolution);
+            }
+        }
+
+        int diffCount = 0;
+        int sameCount = 0;
+
+        for (int i = 0; i < iterCount; ++i)
+        {
+            int sol1Idx = getRandomNumber(0, population.size() - 1);
+            int sol2Idx = sol1Idx;
+            while (sol2Idx == sol1Idx)
+            {
+                sol2Idx = getRandomNumber(0, population.size() - 1);
+            }
+
+            const Solution& sol1 = population[sol1Idx];
+            const Solution& sol2 = population[sol2Idx];
+
+            Solution newSol = recombine(sol1, sol2, instance);
+            newSol = LocalSearchAlgorithm().run(instance, newSol);
+    
+            int worstSolIdx = getWorstSolIdx(population);
+
+            if (newSol.getScore(instance) < population[worstSolIdx].score && isDifferentEnough(population, newSol))
+            {
+                population.erase(population.begin() + worstSolIdx);
+                population.push_back(newSol);
+                ++diffCount;
+            }
+            else
+            {
+                ++sameCount;
+            }
+
+            std::cout << "Accepted/Rejected: " << diffCount << "/" << sameCount << "     \r";
+        }
+
+        return population[getBestSolIdx(population)];
+    }
+};
+
 void test1(const std::filesystem::path& workDir, std::vector<Instance>& instances)
 {
     std::cout << "solver, initializer, instance, score\n";
@@ -2155,6 +2466,53 @@ void test4(const std::filesystem::path& workDir, std::vector<Instance>& instance
     }
 }
 
+void test5(const std::filesystem::path& workDir, std::vector<Instance>& instances)
+{
+    std::cout << "algorithm, instance, score, avg time\n";
+
+    Timer timer;
+    TSPSolver* solvers[] = { new GreedyCycle, new HAE };
+
+    for (auto* solver : solvers)
+    {
+        for (auto& instance : instances)
+        {
+            std::vector<int> scores;
+            std::vector<double> times;
+            int bestScore = std::numeric_limits<int>::max();
+            Solution bestSolution;
+
+            for (int i = 0; i < 10; ++i)
+            {   
+                instance.startIndex = i;
+                timer.start();
+                Solution solution = solver->run(instance);
+                timer.stop();
+                times.push_back(timer.elapsedMilliseconds());
+                int score = solution.getScore(instance);
+                scores.push_back(score);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    bestSolution = solution;
+                }
+            }
+
+            int worstScore = *std::max_element(scores.begin(), scores.end());
+            int avgScore = calculateMean(scores);
+            double bestTime = *std::min_element(times.begin(), times.end());
+            double worstTime = *std::max_element(times.begin(), times.end());
+            double avgTime = calculateMean(times);
+
+            std::string solFileName = instance.name + '-' + solver->getName() + "-solution.txt";
+
+            bestSolution.dump(workDir / solFileName, instance);
+
+            std::cout << solver->getName() << ", " << instance.name << ", " << avgScore << " (" << bestScore << '-' << worstScore << "), " << avgTime << " (" << bestTime << '-' << worstTime << ") ms\n";
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     std::filesystem::path workDir = argc > 1 ? argv[1] : "workdir";
@@ -2169,7 +2527,7 @@ int main(int argc, char* argv[])
     }
 
    // test3(workDir, instances);
-     test4(workDir, instances);
+     test5(workDir, instances);
 
 
     return 0;

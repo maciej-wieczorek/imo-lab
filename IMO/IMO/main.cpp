@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <functional>
 #include <queue>
+#include <numeric>
 
 class Timer
 {
@@ -2221,6 +2222,14 @@ public:
    
     Solution run(const Instance& instance)
     {
+        static std::vector<int> iters;
+        auto start = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::milliseconds(1800);
+        if (instance.name == "kroB200.tsp")
+        {
+            duration = std::chrono::milliseconds(1700);
+        }
+
         std::vector<Solution> population;
         // initial population
         while (population.size() < populationSize)
@@ -2235,7 +2244,9 @@ public:
         int diffCount = 0;
         int sameCount = 0;
 
-        for (int i = 0; i < iterCount; ++i)
+        int i = 0;
+
+        while (std::chrono::high_resolution_clock::now() - start < duration)
         {
             int sol1Idx = getRandomNumber(0, population.size() - 1);
             int sol2Idx = sol1Idx;
@@ -2263,8 +2274,15 @@ public:
                 ++sameCount;
             }
 
+            ++i;
+
             std::cout << "Accepted/Rejected: " << diffCount << "/" << sameCount << "     \r";
         }
+
+        iters.push_back(i);
+        int sum = std::accumulate(iters.begin(), iters.end(), 0);
+        double average = static_cast<double>(sum) / iters.size();
+        std::cout << "\niters average: " << average << "\n";
 
         return population[getBestSolIdx(population)];
     }
